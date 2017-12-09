@@ -1,0 +1,76 @@
+{$include_once srl-6/srl.simba}
+{$include_once bonsai/blCombat.simba}
+{$include_once klamor/kMisc.simba}
+{$f-}
+
+type
+
+  TMonster = record     //stores information for monsters
+    name: String;
+    overText: TStringArray;
+  end;
+
+procedure TMonster.init(_name: String; _overText: TStringArray)
+begin
+  self.name := _name;
+  self.overText := _overText;
+end;
+
+function TMonster.attack(): boolean;         //finds a monster and clicks it
+var                                          //returns true if we are in combat after clicking
+  targetInfo: TRSTargetInfo;
+  ccTorso: Tnpc;
+begin
+  ccTorso.init(self.name);
+  if combatMgr.attack(ccTorso, false, nil, MOUSE_RIGHT) then
+  begin
+    minimap.waitPlayerMoving();
+    wait(500 + random(500));
+    if targetInfo.hasTarget() then
+      result := true;
+  end;
+end;
+
+procedure TMonster.combat()      //handles combat guidelines for fight/looting monsters
+var
+  actionBar: TRSActionBar;
+  fighting: TTimeMarker;
+  hasAttacked, usedAbility: boolean;
+begin
+  if targetInfo.hasTarget() then begin
+    repeat
+      //if (actionBar.__getPercent(AB_BAR_ADRENALINE) < 50) then
+      if (usedAbility = false) and (random(3) = 0) then begin
+        actionBarNumber(6 + random(4));      //use a random skill 6-9
+        usedAbility := true;
+      end;
+      antiBan();
+    until not targetInfo.hasTarget();
+
+    inc(totalKills);
+    usedAbility := false;
+    exit();
+  end;
+
+  hasAttacked := false;
+  fighting.reset();
+  fighting.start();
+
+  if self.attack() then begin
+    hasAttacked := true;
+    usedAbility := false;
+
+    repeat
+      //if (actionBar.__getPercent(AB_BAR_ADRENALINE) < 50) then
+      if (usedAbility = false) and (random(3) = 0) then begin
+        actionBarNumber(6 + random(4));      //use a random skill 6-9
+        usedAbility := true;
+      end;
+      antiBan();
+    until not targetInfo.hasTarget();
+
+    inc(totalKills);
+    usedAbility := false;
+  end;
+end;
+
