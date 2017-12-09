@@ -1,0 +1,99 @@
+//
+// kGameObject.simba
+// Author: Klamor
+// Updated: 12/6/17
+//
+
+{$include_once srl-6/srl.simba}
+{$f-}
+
+type
+  kGameObject = record
+    name          : string;
+    overText      : TStringArray;
+    chooseOption  : string;
+    colors        : T2DColorData;
+    size          : TIntegerArray;
+    gePrice       : integer;
+    skill         : string;
+    XP            : integer;
+    respawnTime   : integer;
+    colTimeout    : integer;
+  end;
+
+var
+
+  //LOOT
+  FDB: kGameObject;
+  //ORES
+  Copper, Tin, Iron, Silver, Gold, Coal, Mithril, Adamantite, Runite: kGameObject;
+
+function kGameObject.getPrice():integer
+
+var thePage, thePrice:string;
+
+begin
+  thePage := getPage('runescape.wikia.com/wiki/Exchange:' + self.name);
+  thePrice := between('GEPrice">', '</span>', thePage);
+  thePrice := replace(thePrice, ',', '', [rfReplaceAll]);
+  result := strToIntDef(thePrice, 0);
+end;
+
+function kGameObject.getXP():integer
+
+var thePage, theXP:string;
+
+begin
+  thePage := getPage('runescape.wikia.com/wiki/' + self.name);
+  theXP := between('<th>Experience</th>', '</td>', thePage);
+  writeLn('STEP' + theXP);
+  theXP := replace(theXP, ',', '', [rfReplaceAll]);
+  writeLn('STEP' + theXP);
+  result := strToIntDef(theXP, 0);
+end;
+
+
+procedure kGameObject.init(_name, _chooseOption: string; _overText: TStringArray; _colors: T2DColorData; _size: TIntegerArray; _skill: string; _XP, _respawnTime, _colTimeout: integer);
+begin
+  self.name := _name;
+  self.overText := _overText;
+  self.chooseOption := _chooseOption;
+  self.colors := _colors;
+  self.size := _size;
+  self.gePrice := self.getPrice();
+  self.skill := _skill;
+  self.XP := _XP;
+  self.respawnTime := _respawnTime;
+  self.colTimeout := _colTimeout;
+end;
+
+procedure kGameObject.printDetails();
+begin
+  writeLn(self.name);
+  writeLn('GE Price: ', self.gePrice);
+  writeLn(self.skill, ' XP: ', self.XP);
+  writeLn();
+end;
+
+procedure initkGameObjects();
+begin
+  //LOOT
+  FDB.init('Frost_dragon_bones', 'bury', ['Frost', 'dragon', 'bones'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Prayer', 180, 0, 0);
+  //ORES
+  Copper.init('Copper_ore', 'mine', ['Copper', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', round(17.5), 3, 20);
+  Tin.init('Tin_ore', 'mine', ['Tin', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', round(17.5), 3, 20);
+  Iron.init('Iron_ore', 'mine', ['Iron', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 35, 10, 20);
+  Silver.init('Silver_ore', 'mine', ['Silver', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 40, 90, 45);
+  Coal.init('Coal', 'mine', ['Coal', 'rocks'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 50, 45, 60);
+  Gold.init('Gold_ore', 'mine', ['Gold', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 65, 90, 60);
+  Mithril.init('Mithril_ore', 'mine', ['Mithril', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 80, 180, 60);
+  Adamantite.init('Adamantite_ore', 'mine', ['Adamantite', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 95, (60*6), 60);
+  Runite.init('Runite_ore', 'mine', ['Runite', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 125, ((18*60)+45), 60);
+end;
+
+begin
+  clearDebug();
+  initkGameObjects();
+  Coal.printDetails();
+  Iron.printDetails();
+end;
