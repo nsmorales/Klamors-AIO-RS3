@@ -1,0 +1,113 @@
+program new;
+
+{$DEFINE NAS_DRAWING}
+{$I SRL-6-SIMBA1.2/SRL.simba}
+{$I NAS/NAS.simba}
+
+procedure declarePlayers();
+begin
+  setLength(players, 1);
+  with players[0] do
+  begin
+    loginName := 'derpatron6666@gmail.com';
+    password := 'Gh3kxgh3kx';
+    isActive := true;
+    isMember := false;
+    world := 135;
+  end;
+  currentPlayer := 0;
+end;
+
+procedure loginToGame();
+begin
+  if isLoggedIn() then exit;
+
+  players[currentPlayer].login();
+  wait(600 + random(300));
+  minimap.clickCompass();
+  wait(600 + random(300));
+  mainScreen.setZoom(true);
+  mainScreen.setAngle(MS_ANGLE_HIGH);
+  exitTreasure();
+
+end;
+
+procedure drawProgress();
+var
+  stats, prog: TStringArray;
+  box: TBox;
+  x: integer;
+begin
+  box := intToBox(7, 770, 192, 858);
+  //NAS.Drawing.drawBox(box, true, 2300428);
+
+  setLength(prog, 4);
+  prog[0] := ('Worked: ');
+  prog[1] := ('Loads Done: ');
+  prog[2] := ('Exp Gained: ');
+  prog[3] := ('Profit Made: ');
+  for x := 0 to high(prog) do
+    NAS.Drawing.drawText(prog[x], point(18,780+(x*14)), 'SmallChars07', false, clWhite);
+
+  setLength(stats, 4);
+  stats[0] := toStr(players[currentPlayer].worked.getTime());
+  stats[1] := toStr(random(100));
+  stats[2] := toStr(random(1000));
+  stats[3] := toStr(random(10000));
+  for x := 0 to high(stats) do
+    NAS.Drawing.drawText(stats[x], point(100,780+(x*14)), 'SmallChars07', false, clWhite);
+end;
+
+procedure OSD();
+var
+  debugS: TStringArray;
+  x: integer;
+begin
+  setLength(debugS, 3);
+  debugS[0] := 'Status: ';
+  debugS[1] := 'Training: ';
+  debugS[2] := 'isLoggedIn: ' + toStr(isLoggedIn());
+
+  for x := 0 to high(debugS) do
+      NAS.Drawing.drawText(debugS[x], point(400,950+(x*14)), 'StatChars07', false, clWhite);
+
+end;
+
+procedure spsMapSize();            //print a visual representation of the minimap when it gets grabbed via SPS
+var
+  box: TBox;
+begin
+  //box top left is compass bottom right
+  box.X1 := 1624;
+  box.Y1 := 50;
+  //box bottom right is map top left
+  box.X2 := 1911;
+  box.Y2 := 316;
+  //box size = 287x266
+  NAS.Drawing.drawBox(box, true, clWhite); //draw a solid white box where we will take minimap bitmaps
+
+end;
+
+procedure loginPlayer();
+begin
+   declarePlayers();
+   if not isLoggedIn() then
+    loginToGame();
+end;
+
+begin
+  ClearDebug();
+  NAS.EnableDebug();
+
+  if(NAS.init()) then
+  begin
+    NAS.Layer.PaintInterval(100);
+    //loginPlayer();
+    repeat
+      OSD();
+      wait(1000);
+      NAS.Drawing.clear();
+      wait(300);
+    until false;
+  end;
+end.
