@@ -1,19 +1,29 @@
-//
-// kGameObject.simba
-// Author: Klamor
-// Updated: 12/6/17
-//
+(*
+kGameObject
+===========
 
-{$include_once srl-6/srl.simba}
+The kGameObject file holds all functions and procedures
+necessary for interacting with RS3 interactable game
+objects. (trees / ores / NPCs / etc.)
+
+*)
+
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once NAS/NAS.simba}
 {$f-}
 
+(*
+**type kGameObject**
+
+A type that stores the game object settings properties.
+
+*)
 type
   kGameObject = record
     name          : string;
     overText      : TStringArray;
     chooseOption  : string;
-    colors        : T2DColorData;
-    size          : TIntegerArray;
+    size          : array[0..1] of integer;
     gePrice       : integer;
     skill         : string;
     XP            : integer;
@@ -21,30 +31,148 @@ type
     colTimeout    : integer;
   end;
 
+(*
+**type kMonster**
+
+A Type that stores cols/gameObject settings for monsters.
+
+*)
+type
+  kMonster = record
+    constXP       : integer;
+    level         : integer;
+    color         : TColorData;
+  end;
+
+(*
+**var kMonster**
+
+A variable through which scripters can access the kMonster methods.
+
+*)
 var
+  Chicken, Cow: kMonster;
 
-  //LOOT
-  FDB: kGameObject;
-  //ORES
-  Copper, Tin, Iron, Silver, Gold, Coal, Mithril, Adamantite, Runite: kGameObject;
+(*
+**type kTree**
 
-function kGameObject.getPrice():integer
+A type that stores the cols/gameObject settings for trees.
+
+*)
+type
+  kTree = record
+    tree_col: TColorData;           //color of uncut tree
+    bottom_col: TColorData;           //color of bottom edge
+    cut_col: TColorData;            //color of top of trunk after tree is cut
+    settings: kGameObject;          //gameobject settings
+  end;
+
+(*
+**var kTree**
+
+A variable through which scripters can access the kTree methods.
+
+*)
+var
+  Tree, Oak, Willow, Teak, Maple, Mahogany, Yew, Magic, Cursed_Magic, Elder, Crystal, Energy_Rift, Power_Generator: kTree;
+
+(*
+**type kOre**
+
+A type that stores the cols/gameObject settings for ores.
+
+*)
+type
+  kOre = record
+    rock_col: TColorData;           //col of rocks
+    ore_col: TColorData;            //col of specific ore
+    settings: kGameObject;          //gameobject settings
+  end;
+
+(*
+**var kOre**
+
+A variable through which scripters can access the kOre methods.
+
+*)
+var
+  Copper, Tin, Iron, Silver, Gold, Coal, Mithril, Adamantite, Runite: kOre;
+
+(*
+**type kWisp**
+
+A type that stores the cols/gameObject settings for wisps.
+
+*)
+type
+  kWisp = record
+    col: TColorData;
+    settings: kGameObject;
+  end;
+
+(*
+**var kWisp**
+
+A variable through which scripters can access the kWisp methods.
+
+*)
+var
+  Pale: kWisp;
+
+(*
+getPrice
+--------
+
+    function getPrice(): integer;
+
+Returns the Grand Exchange price of an item found on RS3-Wikia
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 19 December 2017
+
+Example:
+
+      writeln('Soft Clay Price: ', getPrice('Soft_Clay'));
+
+*)
+function getPrice(s: string):integer
 
 var thePage, thePrice:string;
 
 begin
-  thePage := getPage('runescape.wikia.com/wiki/Exchange:' + self.name);
+  thePage := getPage('runescape.wikia.com/wiki/Exchange:' + s);
   thePrice := between('GEPrice">', '</span>', thePage);
   thePrice := replace(thePrice, ',', '', [rfReplaceAll]);
   result := strToIntDef(thePrice, 0);
 end;
 
-function kGameObject.getXP():integer
+(*
+getXP
+-----
+
+    function getXP(s: string): integer;
+
+Returns the XP value of an item when it's used.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 19 December 2017
+    - DOES NOT WORK YET
+
+Example:
+
+      writeln('Big Bones XP: ', toStr(getXP('Big_Bones')));
+
+*)
+function getXP(s: string):integer
 
 var thePage, theXP:string;
 
 begin
-  thePage := getPage('runescape.wikia.com/wiki/' + self.name);
+  thePage := getPage('runescape.wikia.com/wiki/' + s);
   theXP := between('<th>Experience</th>', '</td>', thePage);
   writeLn('STEP' + theXP);
   theXP := replace(theXP, ',', '', [rfReplaceAll]);
@@ -52,48 +180,545 @@ begin
   result := strToIntDef(theXP, 0);
 end;
 
+(*
+kTree methods
+~~~~~~~~~~~~~
 
-procedure kGameObject.init(_name, _chooseOption: string; _overText: TStringArray; _colors: T2DColorData; _size: TIntegerArray; _skill: string; _XP, _respawnTime, _colTimeout: integer);
+The following methods should be called through the various kTree variables.
+
+Example:
+
+    writeLn('Willow XP: ', totr(Willow.settings.xp));
+*)
+
+{*
+init
+------
+
+    procedure kTree.init(_tree_col, _leaf_col, _cut_col: TColorData; _settings: kGameObject);
+
+Initializes a kTree object.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 19 December 2017
+
+Example:
+
+    Tree.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Tree', ['Tree'], 'hop', [50. 100], getPrice('Logs'), 'Woodcutting', 25, 60000, 30000]);
+
+*}
+procedure kTree.init(_tree_col, _bottom_col, _cut_col: TColorData; _settings: kGameObject);
 begin
-  self.name := _name;
-  self.overText := _overText;
-  self.chooseOption := _chooseOption;
-  self.colors := _colors;
-  self.size := _size;
-  self.gePrice := self.getPrice();
-  self.skill := _skill;
-  self.XP := _XP;
-  self.respawnTime := _respawnTime;
-  self.colTimeout := _colTimeout;
+  self.tree_col := _tree_col;
+  self.bottom_col := _bottom_col;
+  self.cut_col := _cut_col;
+  self.settings := _settings;
 end;
 
-procedure kGameObject.printDetails();
+(*
+initTrees
+---------
+
+    procedure initTrees();
+
+Initializes known tree objects.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 19 December 2017
+
+Example:
+
+      initTrees();
+
+*)
+procedure initTrees();
 begin
-  writeLn(self.name);
-  writeLn('GE Price: ', self.gePrice);
-  writeLn(self.skill, ' XP: ', self.XP);
-  writeLn();
+  //TREEOBJECT.INIT([TREE_COL], [BOTTOM_COL], [CUT_COL], ['NAME', ['OVER','TEXT'], 'CHOOSEOPTION', ])
+  Tree.init([4821171, 18, [2, [0.07, 0.90, 0.00]]], [3092775, 4, [2, [1.02, 1.21, 0.00]]], [11709110, 8, [2, [1.85, 0.37, 0.00]]], ['Tree', ['Tree'], 'hop down', [50, 100], getPrice('Logs'), 'Woodcutting', 25, 60000, 30000]);
+  Oak.init([5005148, 12, [2, [0.59, 0.49, 0.00]]], [3555643, 10, [2, [1.17, 0.32, 0.00]]], [12435401, 0, [2, [0.00, 0.00, 0.00]]], ['Oak Tree', ['Oak'], 'hop down', [50, 100], getPrice('Oak_Logs'), 'Woodcutting', round(37.5), 60000, 30000]);
+  Willow.init([1057287, 6, [2, [0.32, 5.90, 0.00]]], [1319176, 5, [2, [0.28, 5.97, 0.00]]], [4149804, 3, [2, [0.16, 0.39, 0.00]]], ['Willow Tree', ['Willow'], 'hop down', [50, 100], getPrice('Willow_Logs'), 'Woodcutting', round(67.5), 60000, 30000]);
+  Teak.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Teak Tree', ['Teak'], 'hop down', [50, 100], getPrice('Teak_Logs'), 'Woodcutting', 85, 60000, 30000]);
+  Maple.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Maple Tree', ['Maple'], 'hop down', [50, 100], getPrice('Maple_Logs'), 'Woodcutting', 100, 60000, 30000]);
+  Mahogany.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Mahogany Tree', ['Mahogany'], 'hop down', [50, 100], getPrice('Mahogany_Logs'), 'Woodcutting', 125, 60000, 30000]);
+  Yew.init([3957886, 10, [2, [0.05, 0.13, 0.00]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Yew Tree', ['Yew'], 'hop down', [50, 100], getPrice('Yew_Logs'), 'Woodcutting', 175, 60000, 30000]);
+  Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Magic Tree', ['Magic'], 'hop down', [50, 100], getPrice('Magic_Logs'), 'Woodcutting', 250, 60000, 30000]);
+  Cursed_Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cursed Magic Tree', ['Cursed'], 'hop down', [50, 100], getPrice('Cursed_Magic_Logs'), 'Woodcutting', 275, 60000, 30000]);
+  Elder.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Elder Tree', ['Elder'], 'hop down', [50, 100], getPrice('Elder_Logs'), 'Woodcutting', 325, 60000, 30000]);
+  Crystal.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cyrstal Tree', ['Crystal'], 'hop down', [50, 100], getPrice('Crystal_Logs'), 'Woodcutting', round(434.5), 60000, 30000]);
+  Energy_Rift.init([16376740, 14, [2, [0.31, 0.88, 0.00]]], [6745589, 10, [2, [0.09, 1.25, 0.00]]], [11367243, 3, [2, [0.09, 0.18, 0.00]]], ['Energy Rift', ['hannel'], 'hannel', [50, 100], getPrice('Crystal_Logs'), 'Summoning', round(434.5), 60000, 30000]);
 end;
 
-procedure initkGameObjects();
+(*
+kTree.findTree()
+----------------
+
+    procedure kTree.findTree(hoverNext: Boolean = false): Boolean;
+
+Returns true if we successfully find and click a tree on the mainscreen.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 21 December 2017
+
+Example:
+
+      if Willow.findTree() then
+        writeLn('Found: ', Willow.settings.name, '!');
+
+*)
+function kTree.findTree(hoverNext: Boolean = false): Boolean;
+var
+  treeATPA, good, bad, TPAs: T2DPointArray;
+  i, x, y: Integer;
+  searchBox: TBox;
 begin
-  //LOOT
-  FDB.init('Frost_dragon_bones', 'bury', ['Frost', 'dragon', 'bones'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Prayer', 180, 0, 0);
-  //ORES
-  Copper.init('Copper_ore', 'mine', ['Copper', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', round(17.5), 3, 20);
-  Tin.init('Tin_ore', 'mine', ['Tin', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', round(17.5), 3, 20);
-  Iron.init('Iron_ore', 'mine', ['Iron', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 35, 10, 20);
-  Silver.init('Silver_ore', 'mine', ['Silver', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 40, 90, 45);
-  Coal.init('Coal', 'mine', ['Coal', 'rocks'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 50, 45, 60);
-  Gold.init('Gold_ore', 'mine', ['Gold', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 65, 90, 60);
-  Mithril.init('Mithril_ore', 'mine', ['Mithril', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 80, 180, 60);
-  Adamantite.init('Adamantite_ore', 'mine', ['Adamantite', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 95, (60*6), 60);
-  Runite.init('Runite_ore', 'mine', ['Runite', 'ore'], [[0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]]], [0,0], 'Mining', 125, ((18*60)+45), 60);
+  setLength(TPAs, 3);
+  searchBox := [mainScreen.playerBox.X1 - 500, mainScreen.playerBox.Y1 - 300, mainScreen.playerBox.X2 + 500, mainScreen.playerBox.Y2 + 300];
+
+  {$IFDEF NAS_DRAWING}
+    NAS.Drawing.drawBox(searchBox, false, clBlue);
+  {$ENDIF}
+
+  self.tree_col.gatherIn(TPAs[0], searchBox);
+  self.bottom_col.gatherIn(TPAs[1], searchBox);
+  self.cut_col.gatherIn(TPAs[2], searchBox);
+
+  treeATPA := TPAs[0].toATPA(25, 25);
+
+  for i := 0 to high(treeATPA) do
+  begin
+    if treeATPA[i].isPointNear(middleTPA(TPAs[2]), 50) then
+    begin
+      setLength(bad, (high(bad) + 1));
+      bad := bad + treeATPA[i];
+      break;
+    end;
+    if treeATPA[i].isPointNear(middleTPA(TPAs[1]), 75) then
+    begin
+      setLength(good, (high(good) + 1));
+      good := good + treeATPA[i];
+    end;
+  end;
+
+  good.sortFromMidPoint(mainscreen.playerPoint);
+
+  for i := 0 to high(good) do
+  begin
+    mouse(good[i].getBounds().getGaussPoint());
+    if isMouseOverText(self.settings.overText) then
+      if hoverNext then
+        exit(true)
+      else if (random(4) <> 0) then          // 75% chance of left click
+        begin
+          getMousePos(x, y);
+          result := multiClick([x, y], 15, 3); // If left click, 15% chance to multi-click
+          smallRandomMouse();
+          break();
+        end else
+        begin
+          fastClick(MOUSE_RIGHT);
+          if chooseOption.select([self.settings.chooseOption]) then
+          begin
+            smallRandomMouse();
+            exit(true);
+          end;
+        end;
+  end;
+end;
+
+(*
+kTree.chopDone()
+----------------
+
+    procedure kTree.chopDone(): Boolean;
+
+Returns true if we are done cutting a tree.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 22 December 2017
+    - Inspired by Coh3n's Chop_Finished() in Draynor Chop N' Bank
+
+Example:
+
+      if Willow.chopDone() then
+        writeLn('Done cutting: ', Willow.settings.name, '!');
+
+*)
+function kTree.chopDone(): boolean;
+var
+  timeout: TTimeMarker;
+  avg, max, done: Integer;
+  txtPoint: TPoint;
+begin
+  if not isLoggedIn() then
+    exit;
+
+  max := (self.settings.colTimeout + randomRange(-10000, 10000));
+
+  txtPoint := point(mainScreen.playerPoint.X - 50, mainScreen.playerPoint.Y + 50);
+
+  done := 0;
+
+  timeout.reset();
+  timeout.start();
+
+  repeat
+    avg := getPixelShiftAverage(mainscreen.playerBox, 100, 300);
+
+    {$IFDEF NAS_DRAWING}
+      NAS.Drawing.drawBox(mainscreen.playerBox, false, clRed);
+      NAS.Drawing.drawText(self.settings.name + '.chopDone(): ' + intToStr(avg), txtPoint, 'SmallChars07', false, clWhite);
+      NAS.Drawing.clear();
+    {$ENDIF}
+
+    if (inRange(avg, 0, 600)) then
+    begin
+      Inc(done);
+
+      if (done = 1) then
+        Continue;
+    end else
+      done := 0;
+
+    if (done >= 2) or (tabBackpack.isFull()) then
+    begin
+      Result := True;
+      {$IFDEF NAS_DRAWING}
+        NAS.Drawing.drawBox(mainscreen.playerBox, false, clRed);
+        NAS.Drawing.drawText(self.settings.name + '.chopDone(): ' + toStr(result), txtPoint, 'SmallChars07', false, clWhite);
+        NAS.Drawing.clear();
+      {$ENDIF}
+      Break;
+    end;
+
+  until (timeout.getTime() > max) or (not isLoggedIn());
+end;
+
+(*
+kOre methods
+~~~~~~~~~~~~
+
+The following methods should be called through the various kOre variables.
+
+Example:
+
+    writeLn('Copper XP: ', totr(Copper.settings.xp));
+*)
+
+{*
+init
+------
+
+    procedure kOre.init(_rock_col, _ore_col: TColorData; _settings: kGameObject);
+
+Initializes a kOre object.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 19 December 2017
+
+Example:
+
+     Copper.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Copper Rocks', ['Copper', 'Ore'], 'mine', [25. 25], getPrice('Copper_Ore'), 'Mining', round(17.5), 60000, 30000]);
+
+*}
+procedure kOre.init(_rock_col, _ore_col: TColorData; _settings: kGameObject);
+begin
+  self.rock_col := _rock_col;
+  self.ore_col := _ore_col;
+  self.settings := _settings;
+end;
+
+(*
+initOres
+--------
+
+    procedure initOres();
+
+Initializes known ore objects.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 19 December 2017
+
+Example:
+
+      initOres();
+
+*)
+
+procedure initOres();
+begin
+  Copper.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Copper Rocks', ['Copper', 'Ore'], 'mine', [25, 25], getPrice('Copper_Ore'), 'Mining', round(17.5), 60000, 30000]);
+  Tin.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Tin Rocks', ['Tin', 'ore'], 'mine', [25, 25], getPrice('Tin_ore'), 'Mining', round(17.5), 60000, 30000]);
+  Iron.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Iron Rocks', ['Iron', 'ore'], 'mine', [25, 25], getPrice('Iron_ore'), 'Mining', 35, 60000, 30000]);
+  Silver.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Silver Rocks', ['Silver', 'ore'], 'mine', [25, 25], getPrice('Silver_ore'), 'Mining', 40, 60000, 30000]);
+  Coal.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Coal Rocks', ['Coal', 'rocks'], 'mine', [25, 25], getPrice('Coal'), 'Mining', 50, 60000, 30000]);
+  Gold.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Gold Rocks', ['Gold', 'ore'], 'mine', [25, 25], getPrice('Gold_ore'), 'Mining', 65, 60000, 30000]);
+  Mithril.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Mithril Rocks', ['Mithril', 'ore'], 'mine', [25, 25], getPrice('Mithril_ore'), 'Mining', 80, 60000, 30000]);
+  Adamantite.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Adamantite Rocks', ['Adamantite', 'ore'], 'mine', [25, 25], getPrice('Adamantite_ore'), 'Mining', 95, 60000, 30000]);
+  Runite.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Runite Rocks', ['Runite', 'ore'], 'mine', [25, 25], getPrice('Runite_ore'), 'Mining', 125, 60000, 30000]);
+end;
+
+(*
+kWisp methods
+~~~~~~~~~~~~~
+
+The following methods should be called through the various kWisp variables.
+
+Example:
+
+    write something here
+*)
+
+{*
+init
+------
+
+    procedure kWisp.init(_glow_col, _wisp_col: TColorData; level_req: Integer; _settings: kGameObject);
+
+Initializes a kWisp object.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 26 December 2017
+
+Example:
+
+    write soemthing here
+
+*}
+procedure kWisp.init(_col: TColorData; _settings: kGameObject);
+begin
+  self.col := _col;
+  self.settings := _settings;
+end;
+
+(*
+initWisps
+---------
+
+    procedure initWisps();
+
+Initializes known wisp objects.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 26 December 2017
+
+Example:
+
+      initWisps();
+
+*)
+procedure initWisps();
+begin
+  Pale.init([13150361, 11, [2, [0.20, 0.67, 0.00]]], ['Pale Wisp', ['arvest', 'Pale', 'Wisp'], 'arvest', [15,15], getPrice('Pale_energy'), 'Divination', 0, 30000, 30000]);
+end;
+
+(*
+kWisp.findWisps()
+----------------
+
+    function kWisp.findWisps(hoverNext: Boolean = false): Boolean;
+
+Returns true if we successfully find and click a wisp on the mainscreen.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 21 December 2017
+
+Example:
+
+      if Pale.findWisps(false) then
+        writeLn('Found: ', Pale.settings.name, '!');
+
+*)
+function kWisp.findWisps(hoverNext: Boolean = false): Boolean;
+var
+  TPA: TPointArray;
+  wisps: T2DPointArray;
+  i, x, y: Integer;
+  searchBox: TBox;
+begin
+  searchBox := [mainScreen.playerBox.X1 - 600, mainScreen.playerBox.Y1 - 400, mainScreen.playerBox.X2 + 600, mainScreen.playerBox.Y2 + 400];
+
+  {$IFDEF NAS_DRAWING}
+    NAS.Drawing.drawBox(searchBox, false, clBlue);      //remove later if it's a good search area
+  {$ENDIF}
+
+  self.col.gatherIn(TPA, searchBox);
+  wisps := TPA.toATPA(self.settings.size);
+  wisps.sortFromMidPoint(mainScreen.playerPoint);
+
+  for x := 0 to high(wisps) do
+  begin
+    {$IFDEF NAS_DRAWING}
+      NAS.Drawing.debugTPA(wisps[x]);
+    {$ENDIF}
+    mouse(wisps[x].getBounds().getGaussPoint());
+    if isMouseOverText(self.settings.overText) then
+      if hoverNext then
+      begin
+        exit(true)
+      end else if (random(4) <> 0) then          // 75% chance of left click
+        begin
+          getMousePos(x, y);
+          result := multiClick([x, y], 15, 3); // If left click, 15% chance to multi-click
+          smallRandomMouse();
+          break();
+        end else
+        begin
+          fastClick(MOUSE_RIGHT);
+          if chooseOption.select([self.settings.chooseOption]) then
+          begin
+            smallRandomMouse();
+            exit(true);
+          end;
+        end;
+  end;
+end;
+
+(*
+kWisp.doneHarvesting()
+----------------
+
+    procedure kWisp.doneHarvesting(): boolean;
+
+Returns true if we are done cutting a tree.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 22 December 2017
+    - Inspired by Coh3n's Chop_Finished() in Draynor Chop N' Bank
+
+Example:
+
+      if Pale.doneHarvesting() then
+        writeLn('Done harvesting: ', Pale.settings.name, '!');
+
+*)
+function kWisp.doneHarvesting(): boolean;
+var
+  harvestTimer: TTimeMarker;
+  txtPoint: TPoint;
+  avg, timeout, done: Integer;
+begin
+  if not isLoggedIn() then
+    exit;
+
+  txtPoint := point(mainScreen.playerPoint.X - 75, mainScreen.playerPoint.Y + 50);    //debug text location
+
+  timeout := (25000 + random(15000)); //timeout after random(25-40) seconds
+
+  done := 0;
+
+  harvestTimer.reset();
+  harvestTimer.start();
+
+  repeat
+    avg := getPixelShiftAverage(mainscreen.playerBox, 100, 300);
+
+    {$IFDEF NAS_DRAWING}
+      NAS.Drawing.drawBox(mainscreen.playerBox, false, clRed);
+      NAS.Drawing.drawText(self.settings.name + '.doneHarvesting(): ' + intToStr(avg), txtPoint, 'SmallChars07', false, clWhite);
+      NAS.Drawing.clear();
+    {$ENDIF}
+
+    if (inRange(avg, 0, 600)) then
+    begin
+      Inc(done);
+
+      if (done = 1) then
+        Continue;
+    end else
+      done := 0;
+
+    if (done >= 2) or (tabBackpack.isFull()) then
+    begin
+      Result := True;
+      {$IFDEF NAS_DRAWING}
+        NAS.Drawing.drawBox(mainscreen.playerBox, false, clRed);
+        NAS.Drawing.drawText(self.settings.name + '.doneHarvesting(): ' + toStr(result), txtPoint, 'SmallChars07', false, clWhite);
+        NAS.Drawing.clear();
+      {$ENDIF}
+      Break;
+    end;
+
+  until (harvestTimer.getTime() > timeout) or (not isLoggedIn());
+end;
+
+function kWisp.findRift(hoverNext: Boolean = false): Boolean;
+begin
+
+end;
+
+(*
+kWisp.isConverting()
+----------------
+
+    function kWisp.isConverting(): boolean;
+
+Returns true if we are still converting memories.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 22 December 2017
+    - Inspired by Coh3n's Chop_Finished() in Draynor Chop N' Bank
+
+Example:
+
+      if Pale.doneHarvesting() then
+        writeLn('Done harvesting: ', Pale.settings.name, '!');
+
+*)
+function kWisp.isConverting(): boolean;
+begin
+
+end;
+(*
+kWisp.convertMemories()
+----------------
+
+    procedure kWisp.convertMemories(select: Integer);
+
+Converts memories to (select: Integer)*1..3* type.
+1: to Energy
+2: to EXP
+3: to Enhanced EXP
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 22 December 2017
+
+Example:
+
+      if Pale.convertMemories() then
+        writeLn('Converted all memories to: ', toStr(select), '!');
+
+*)
+procedure kWisp.convertMemories(select: Integer);
+begin
+
 end;
 
 begin
-  clearDebug();
-  initkGameObjects();
-  Coal.printDetails();
-  Iron.printDetails();
+  initTrees();
+  initOres();
+  initWisps();
 end;

@@ -5,7 +5,6 @@ program kTask;
 {$f-}
 
 type
-
   TTask = record             //stores information for various tasks
     name, mapName, lode, bankCol: String;
     skill, minLevel, maxLevel: Integer;
@@ -27,7 +26,6 @@ begin
   self.skill := _skill;
   self.minLevel := _minLevel;
   self.maxLevel := _maxLevel;
-  self.
   self.toTask := _toTask;
   self.toBank := _toBank;
   self.location := _location;

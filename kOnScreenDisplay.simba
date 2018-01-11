@@ -1,0 +1,279 @@
+(*
+kOnScreenDisplay
+================
+
+The kOnScreenDisplay file holds all the functions and procedures
+required for Klamor's NXT-oriented scripts.
+
+*)
+
+{$include_once NAS/NAS.simba}
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$f-}
+
+(*
+**type statusOverlay**
+
+contains the vars for script status overlays
+
+*)
+type
+  statusOverlay = record
+    col: integer;
+    box: TBox;
+    txt: String;
+    state: TStringArray;
+  end;
+
+(*
+**type progressOverlay**
+
+contains the vars for script status overlays
+
+*)
+type
+  progressOverlay = record
+    bmp: Integer;
+    loc: Tpoint;
+    txt, stats: TStringArray;
+  end;
+
+(*
+**type onScreenDisplay**
+
+contains the vars for script status overlays
+
+*)
+type
+  onScreenDisplay = record
+    progress: progressOverlay;
+    status: statusOverlay;
+  end;
+
+(*
+**var OSD**
+
+A variable through which scripters can access the onScreenDisplay methods.
+
+*)
+var
+  OSD: onScreenDisplay;
+
+(*
+statusOverlay methods
+~~~~~~~~~~~~~~~~~~~~~
+
+The following methods should be called through the OSD.status variable.
+
+*)
+{*
+init
+----
+
+Initializes a statusOverlay.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 29 December 2017
+
+Example:
+
+    procedure statusOverlay.__init();
+
+*}
+
+procedure statusOverlay.__init();
+begin
+  self.box := [0, 0, minimap.x1, (minimap.y1 + 18)];    //height 16-18px? length point(0,0) to point(minimap.x1, minimap.y1 + height)
+  case random(12) of
+                0: self.col := clRed;
+                1: self.col := clGreen;
+                2: self.col := clBlue;
+                3: self.col := clPurple;                            //there HAS to be a shorter/better way to do this... right?
+                4: self.col := clYellow;                            //just want to pick a random color each time :P
+                5: self.col := clTeal;
+                6: self.col := clAqua;
+                7: self.col := clOrange;
+                8: self.col := clFuchsia;
+                9: self.col := clNavy;
+                10: self.col := clMaroon;
+              end;
+  self.txt := 'Status: ';
+  self.state := ['Initializing...'];
+end;
+
+(*
+statusOverlay.update()
+======================
+
+    procedure statusOverlay.update(txt: TStringArray);
+
+    Example:
+      OSD.status.update(['derping', 'around']);
+*)
+procedure statusOverlay.update(txt: TStringArray);
+begin
+  self.state := txt;
+end;
+
+(*
+progressOverlay methods
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The following methods should be called through the OSD.progress variable.
+
+*)
+{*
+init
+----
+
+Initializes a progressOverlay.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 29 December 2017
+
+Example:
+
+    procedure progressOverlay.__init();
+
+*}
+procedure progressOverlay.__init();
+begin
+  self.bmp := loadBitmap(appPath + 'Includes/Klamor/Progress.png');
+    fastReplaceColor(self.bmp, 0, 1);
+  self.loc := point(chatbox.x1, chatbox.y1);
+  setLength(self.txt, 3);
+  self.txt := ['Worked: ','EXP: ','EXP/HR: '];
+end;
+
+(*
+progressOverlay.update()
+======================
+
+    procedure progressOverlay.update(txt: TStringArray);
+
+    Example:
+      OSD.progress.update([toStr(minsWorked) + ' mins', toStr(totalEXP), toStr(EXP/hr)]);
+
+*)
+procedure progressOverlay.update(txt: TStringArray);
+begin
+  self.stats := txt;
+end;
+
+(*
+initNXTui();
+============
+
+Initializes the SRL-6/Simba1.2 UI elements for use with 1920x1080
+NXT scripting.
+
+*)
+procedure initNXTui();
+begin
+  MainScreen.__setup();
+  Lobby.__init();
+  GameTabs.__init();
+  TabBackpack.__init();
+  ChatBox.__setup();
+  Minimap.__init();
+  ActionBar.__init();
+end;
+
+(*
+drawUi();
+=========
+
+Requires NAS include.
+Draws the main UI elements for ease of configuring the in-game UI
+to function properly with SRL-6/Simba1.2
+
+*)
+procedure drawUI();
+begin
+  NAS.Drawing.drawBox(mainScreen.getBounds(), false, clWhite);
+  NAS.Drawing.drawBox(miniMap.getBounds(), false, clWhite);
+  NAS.Drawing.drawBox(actionBar.getBounds(), false, clWhite);
+  NAS.Drawing.drawBoxes(actionBar.__slots, false, clWhite);
+  NAS.Drawing.drawBox(tabBackpack.getBounds(), false, clWhite);
+  NAS.Drawing.drawBox(ChatBox.getBounds(), false, clWhite);
+  NAS.Drawing.drawBox(GameTabs.__tabSelectionArea, false, clWhite);
+  NAS.Drawing.drawBox(GameTabs.tabArea, false, clWhite);
+  NAS.Drawing.drawBox(GameTabs.getActiveTabArea(), false, clWhite);
+end;
+
+(*
+drawStrings();
+==============
+
+    procedure drawStrings(s: TStringArray; p: TPoint);
+
+Draws a TStringArray at a Tpoint
+
+*)
+procedure drawStrings(s: TStringArray; p: TPoint);
+var
+  x: integer;
+begin
+  for x := 0 to high(s) do
+    NAS.Drawing.drawText(s[x], point(p.X,p.Y+(x*14)), 'SmallChars07', false, clWhite);
+end;
+
+(*
+onScreenDisplay.drawProgress();
+===============
+
+Draws a progress report
+
+*)
+procedure onScreenDisplay.drawProgress();
+var
+  txtPoint, statPoint: TPoint;
+begin
+  txtPoint := point(self.progress.loc.X + 30, self.progress.loc.Y + 20);
+  statPoint := point(txtPoint.X + 100, txtPoint.Y);
+  NAS.Drawing.drawBitmap(self.progress.bmp, self.progress.loc);
+  drawStrings(self.progress.txt, txtPoint);
+  drawStrings(self.progress.stats, statPoint);
+end;
+
+(*
+onScreenDisplay.drawStatus();
+===============
+
+Draws a statusOverlay
+
+*)
+procedure onScreenDisplay.drawStatus();
+var
+  txtPoint, statusPoint: TPoint;
+begin
+  NAS.Drawing.drawBox(self.status.box, true, self.status.col);
+  txtPoint := point(self.status.box.X1 + 10, self.status.box.Y1 + 2);
+  drawStrings([self.status.txt], txtPoint);
+  statusPoint := point(self.status.box.X1 + 100, self.status.box.Y1 + 2);
+  drawStrings(self.status.state, statusPoint);
+end;
+
+(*
+onScreenDisplay.refresh();
+===============
+
+Refreshes the onScreenDisplay.
+
+*)
+procedure onScreenDisplay.refresh();
+begin
+  NAS.Drawing.Clear();
+  self.drawProgress();
+  self.drawStatus();
+end;
+
+begin
+  initNXTui();
+  OSD.progress.__init();
+  OSD.status.__init();
+end;
