@@ -50,8 +50,8 @@ type
 A variable through which scripters can access the kMonster methods.
 
 *)
-var
-  Chicken, Cow: kMonster;
+//var
+  //Chicken, Cow: kMonster;
 
 (*
 **type kTree**
@@ -74,7 +74,7 @@ A variable through which scripters can access the kTree methods.
 
 *)
 var
-  Tree, Oak, Willow, Teak, Maple, Mahogany, Yew, Magic, Cursed_Magic, Elder, Crystal, Energy_Rift, Power_Generator: kTree;
+  Tree, Oak, Willow, Teak, Maple, Mahogany, Yew, Magic, Cursed_Magic, Elder, Crystal: kTree;
 
 (*
 **type kOre**
@@ -149,38 +149,6 @@ begin
 end;
 
 (*
-getXP
------
-
-    function getXP(s: string): integer;
-
-Returns the XP value of an item when it's used.
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 19 December 2017
-    - DOES NOT WORK YET
-
-Example:
-
-      writeln('Big Bones XP: ', toStr(getXP('Big_Bones')));
-
-*)
-function getXP(s: string):integer
-
-var thePage, theXP:string;
-
-begin
-  thePage := getPage('runescape.wikia.com/wiki/' + s);
-  theXP := between('<th>Experience</th>', '</td>', thePage);
-  writeLn('STEP' + theXP);
-  theXP := replace(theXP, ',', '', [rfReplaceAll]);
-  writeLn('STEP' + theXP);
-  result := strToIntDef(theXP, 0);
-end;
-
-(*
 kTree methods
 ~~~~~~~~~~~~~
 
@@ -249,7 +217,6 @@ begin
   Cursed_Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cursed Magic Tree', ['Cursed'], 'hop down', [50, 100], getPrice('Cursed_Magic_Logs'), 'Woodcutting', 275, 60000, 30000]);
   Elder.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Elder Tree', ['Elder'], 'hop down', [50, 100], getPrice('Elder_Logs'), 'Woodcutting', 325, 60000, 30000]);
   Crystal.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cyrstal Tree', ['Crystal'], 'hop down', [50, 100], getPrice('Crystal_Logs'), 'Woodcutting', round(434.5), 60000, 30000]);
-  Energy_Rift.init([16376740, 14, [2, [0.31, 0.88, 0.00]]], [6745589, 10, [2, [0.09, 1.25, 0.00]]], [11367243, 3, [2, [0.09, 0.18, 0.00]]], ['Energy Rift', ['hannel'], 'hannel', [50, 100], getPrice('Crystal_Logs'), 'Summoning', round(434.5), 60000, 30000]);
 end;
 
 (*
@@ -560,7 +527,7 @@ begin
   {$ENDIF}
 
   self.col.gatherIn(TPA, searchBox);
-  wisps := TPA.toATPA(self.settings.size);
+  wisps := TPA.toATPA(5, 5);
   wisps.sortFromMidPoint(mainScreen.playerPoint);
 
   for x := 0 to high(wisps) do
