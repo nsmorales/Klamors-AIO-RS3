@@ -22,7 +22,6 @@ end;
 procedure loginToGame();
 begin
   if isLoggedIn() then exit;
-
   players[currentPlayer].login();
   wait(600 + random(300));
   mainScreen.setAngle(MS_ANGLE_HIGH);

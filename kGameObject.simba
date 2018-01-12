@@ -23,12 +23,8 @@ type
     name          : string;
     overText      : TStringArray;
     chooseOption  : string;
-    size          : array[0..1] of integer;
     gePrice       : integer;
-    skill         : string;
     XP            : integer;
-    respawnTime   : integer;
-    colTimeout    : integer;
   end;
 
 (*
@@ -206,17 +202,17 @@ Example:
 procedure initTrees();
 begin
   //TREEOBJECT.INIT([TREE_COL], [BOTTOM_COL], [CUT_COL], ['NAME', ['OVER','TEXT'], 'CHOOSEOPTION', ])
-  Tree.init([4821171, 18, [2, [0.07, 0.90, 0.00]]], [3092775, 4, [2, [1.02, 1.21, 0.00]]], [11709110, 8, [2, [1.85, 0.37, 0.00]]], ['Tree', ['Tree'], 'hop down', [50, 100], getPrice('Logs'), 'Woodcutting', 25, 60000, 30000]);
-  Oak.init([5005148, 12, [2, [0.59, 0.49, 0.00]]], [3555643, 10, [2, [1.17, 0.32, 0.00]]], [12435401, 0, [2, [0.00, 0.00, 0.00]]], ['Oak Tree', ['Oak'], 'hop down', [50, 100], getPrice('Oak_Logs'), 'Woodcutting', round(37.5), 60000, 30000]);
-  Willow.init([1057287, 6, [2, [0.32, 5.90, 0.00]]], [1319176, 5, [2, [0.28, 5.97, 0.00]]], [4149804, 3, [2, [0.16, 0.39, 0.00]]], ['Willow Tree', ['Willow'], 'hop down', [50, 100], getPrice('Willow_Logs'), 'Woodcutting', round(67.5), 60000, 30000]);
-  Teak.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Teak Tree', ['Teak'], 'hop down', [50, 100], getPrice('Teak_Logs'), 'Woodcutting', 85, 60000, 30000]);
-  Maple.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Maple Tree', ['Maple'], 'hop down', [50, 100], getPrice('Maple_Logs'), 'Woodcutting', 100, 60000, 30000]);
-  Mahogany.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Mahogany Tree', ['Mahogany'], 'hop down', [50, 100], getPrice('Mahogany_Logs'), 'Woodcutting', 125, 60000, 30000]);
-  Yew.init([3957886, 10, [2, [0.05, 0.13, 0.00]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Yew Tree', ['Yew'], 'hop down', [50, 100], getPrice('Yew_Logs'), 'Woodcutting', 175, 60000, 30000]);
-  Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Magic Tree', ['Magic'], 'hop down', [50, 100], getPrice('Magic_Logs'), 'Woodcutting', 250, 60000, 30000]);
-  Cursed_Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cursed Magic Tree', ['Cursed'], 'hop down', [50, 100], getPrice('Cursed_Magic_Logs'), 'Woodcutting', 275, 60000, 30000]);
-  Elder.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Elder Tree', ['Elder'], 'hop down', [50, 100], getPrice('Elder_Logs'), 'Woodcutting', 325, 60000, 30000]);
-  Crystal.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cyrstal Tree', ['Crystal'], 'hop down', [50, 100], getPrice('Crystal_Logs'), 'Woodcutting', round(434.5), 60000, 30000]);
+  Tree.init([4821171, 18, [2, [0.07, 0.90, 0.00]]], [3092775, 4, [2, [1.02, 1.21, 0.00]]], [11709110, 8, [2, [1.85, 0.37, 0.00]]], ['Tree', ['Tree'], 'hop down', getPrice('Logs'), 25]);
+  Oak.init([5005148, 12, [2, [0.59, 0.49, 0.00]]], [3555643, 10, [2, [1.17, 0.32, 0.00]]], [12435401, 0, [2, [0.00, 0.00, 0.00]]], ['Oak Tree', ['Oak'], 'hop down', getPrice('Oak_Logs'), round(37.5)]);
+  Willow.init([1057287, 6, [2, [0.32, 5.90, 0.00]]], [1319176, 5, [2, [0.28, 5.97, 0.00]]], [4149804, 3, [2, [0.16, 0.39, 0.00]]], ['Willow Tree', ['Willow'], 'hop down', getPrice('Willow_Logs'), round(67.5)]);
+  Teak.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Teak Tree', ['Teak'], 'hop down', getPrice('Teak_Logs'), 85]);
+  Maple.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Maple Tree', ['Maple'], 'hop down', getPrice('Maple_Logs'), 100]);
+  Mahogany.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Mahogany Tree', ['Mahogany'], 'hop down', getPrice('Mahogany_Logs'), 125]);
+  Yew.init([3957886, 10, [2, [0.05, 0.13, 0.00]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Yew Tree', ['Yew'], 'hop down', getPrice('Yew_Logs'), 175]);
+  Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Magic Tree', ['Magic'], 'hop down', getPrice('Magic_Logs'), 250]);
+  Cursed_Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cursed Magic Tree', ['Cursed'], 'hop down', getPrice('Cursed_Magic_Logs'), 275]);
+  Elder.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Elder Tree', ['Elder'], 'hop down', getPrice('Elder_Logs'), 325]);
+  Crystal.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cyrstal Tree', ['Crystal'], 'hop down', getPrice('Crystal_Logs'), round(434.5)]);
 end;
 
 (*
@@ -327,7 +323,7 @@ begin
   if not isLoggedIn() then
     exit;
 
-  max := (self.settings.colTimeout + randomRange(-10000, 10000));
+  max := (30000 + randomRange(-10000, 10000));
 
   txtPoint := point(mainScreen.playerPoint.X - 50, mainScreen.playerPoint.Y + 50);
 
@@ -425,15 +421,15 @@ Example:
 
 procedure initOres();
 begin
-  Copper.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Copper Rocks', ['Copper', 'Ore'], 'mine', [25, 25], getPrice('Copper_Ore'), 'Mining', round(17.5), 60000, 30000]);
-  Tin.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Tin Rocks', ['Tin', 'ore'], 'mine', [25, 25], getPrice('Tin_ore'), 'Mining', round(17.5), 60000, 30000]);
-  Iron.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Iron Rocks', ['Iron', 'ore'], 'mine', [25, 25], getPrice('Iron_ore'), 'Mining', 35, 60000, 30000]);
-  Silver.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Silver Rocks', ['Silver', 'ore'], 'mine', [25, 25], getPrice('Silver_ore'), 'Mining', 40, 60000, 30000]);
-  Coal.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Coal Rocks', ['Coal', 'rocks'], 'mine', [25, 25], getPrice('Coal'), 'Mining', 50, 60000, 30000]);
-  Gold.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Gold Rocks', ['Gold', 'ore'], 'mine', [25, 25], getPrice('Gold_ore'), 'Mining', 65, 60000, 30000]);
-  Mithril.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Mithril Rocks', ['Mithril', 'ore'], 'mine', [25, 25], getPrice('Mithril_ore'), 'Mining', 80, 60000, 30000]);
-  Adamantite.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Adamantite Rocks', ['Adamantite', 'ore'], 'mine', [25, 25], getPrice('Adamantite_ore'), 'Mining', 95, 60000, 30000]);
-  Runite.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Runite Rocks', ['Runite', 'ore'], 'mine', [25, 25], getPrice('Runite_ore'), 'Mining', 125, 60000, 30000]);
+  Copper.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Copper Rocks', ['Copper', 'Ore'], 'mine', getPrice('Copper_Ore'), round(17.5)]);
+  Tin.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Tin Rocks', ['Tin', 'ore'], 'mine', getPrice('Tin_ore'), round(17.5)]);
+  Iron.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Iron Rocks', ['Iron', 'ore'], 'mine', getPrice('Iron_ore'), 35]);
+  Silver.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Silver Rocks', ['Silver', 'ore'], 'mine', getPrice('Silver_ore'), 40]);
+  Coal.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Coal Rocks', ['Coal', 'rocks'], 'mine', getPrice('Coal'), 50]);
+  Gold.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Gold Rocks', ['Gold', 'ore'], 'mine', getPrice('Gold_ore'), 65]);
+  Mithril.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Mithril Rocks', ['Mithril', 'ore'], 'mine', getPrice('Mithril_ore'), 80]);
+  Adamantite.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Adamantite Rocks', ['Adamantite', 'ore'], 'mine', getPrice('Adamantite_ore'), 95]);
+  Runite.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Runite Rocks', ['Runite', 'ore'], 'mine', getPrice('Runite_ore'), 125]);
 end;
 
 (*
@@ -491,7 +487,7 @@ Example:
 *)
 procedure initWisps();
 begin
-  Pale.init([13150361, 11, [2, [0.20, 0.67, 0.00]]], ['Pale Wisp', ['arvest', 'Pale', 'Wisp'], 'arvest', [15,15], getPrice('Pale_energy'), 'Divination', 0, 30000, 30000]);
+  Pale.init([13150361, 11, [2, [0.20, 0.67, 0.00]]], ['Pale Wisp', ['arvest', 'Pale', 'Wisp'], 'arvest', getPrice('Pale_energy'), 0]);
 end;
 
 (*
