@@ -7,7 +7,7 @@ program kLoot;
 type
 
   TLoot = record
-    name: String;       //stores information for looked for while looting (eg. bones)
+    name: String;       //stores information for lootable items
     overText: TStringArray;
     colours: T2DColorData;
     invDTM: Integer;

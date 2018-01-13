@@ -1,20 +1,30 @@
 program kTask;
 
-{$include_once srl-6/srl.simba}
+{$Iinclude_once SRL-6-SIMBA1.2/SRL.simba}
+{$Iinclude_once SPS/lib/SPS-rs3.simba}
+{$Iinclude_once Klamor/kGameObject.simba}
 {$include_once klamor/kMisc.simba}
 {$f-}
 
 type
-  TTask = record             //stores information for various tasks
-    name, mapName, lode, bankCol: String;
-    skill, minLevel, maxLevel: Integer;
-    loot: Tloot;
-    gameObject: TGamoeObject;
-    monster: TMonster;
-    location: TPointArray;
-    bankloc: TPointArray;
-    toTask: T2DPointArray;
-    toBank: T2DPointArray;
+  tTaskArea = record
+    mapName     : TStringArray;      //array of map name(s)
+    bankLoc     : TPointArray;       //Bank Location Polygon
+    gatherLoc   : TPointArray;       //Gather Location Polygon
+    objectLoc   : T2DPointArray;     //array of Object Location Polygon(s)
+    toBank      : TPointArray;       //path to self.bankLoc
+    toGather    : TPointArray;       //path to self.gatherLoc
+    toObject    : T2DPointArray;     //array of paths to self.object[s]
+    lodestone   : String;            //string of TaskArea lodestone (eg. 'Lumbridge')
+  end;
+
+  TTask = record             //stores information for tasks
+    area        : TTaskArea;
+    skill       : Integer;
+    minLevel    : Integer;
+    maxLevel    : Integer;
+    loot        : array of Tloot;
+    gameObject  : array of TGameObject;
   end;
 
 procedure TTask.init(_name, _mapName, _lode, _bankCol: String; _skill, _minLevel, _maxLevel: Integer; _toTask, _toBank: T2DPointArray; _location, _bankLoc: TPointArray);
