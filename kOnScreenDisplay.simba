@@ -9,6 +9,7 @@ required for Klamor's NXT-oriented scripts.
 
 {$include_once NAS/NAS.simba}
 {$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once Klamor/kMisc.simba}
 {$f-}
 
 (*
@@ -35,7 +36,7 @@ type
   progressOverlay = record
     bmp: Integer;
     loc: Tpoint;
-    txt, stats: TStringArray;
+    stats: TStringArray;
   end;
 
 (*
@@ -85,8 +86,8 @@ Example:
 
 procedure statusOverlay.__init();
 begin
-  self.box := [0, 0, minimap.x1, (minimap.y1 + 18)];    //height 16-18px? length point(0,0) to point(minimap.x1, minimap.y1 + height)
-  case random(12) of
+  self.box := [chatbox.x1, (chatbox.y1 - 18), chabox.x2, chatbox.y1];    //status box ontop of chatbox tabs
+  case random(11) of
                 0: self.col := clRed;
                 1: self.col := clGreen;
                 2: self.col := clBlue;
@@ -145,8 +146,11 @@ begin
   self.bmp := loadBitmap(appPath + 'Includes/Klamor/Progress.png');
     fastReplaceColor(self.bmp, 0, 1);
   self.loc := point(chatbox.x1, chatbox.y1);
-  setLength(self.txt, 3);
-  self.txt := ['Worked: ','EXP: ','EXP/HR: '];
+  setLength(self.stats, 4);
+  self.stats[0] := msToTime(players[currentPlayer].worked.getTime(), 0);
+  self.stats[1] := toStr(totalEXP);
+  self.stats[2] := toStr(expPH);
+  self.stats[3] := 'N/A - Not Implemented';	
 end;
 
 (*
@@ -206,20 +210,17 @@ begin
 end;
 
 (*
-drawStrings();
+drawString();
 ==============
 
-    procedure drawStrings(s: TStringArray; p: TPoint);
+    procedure drawString(s: String; p: TPoint);
 
-Draws a TStringArray at a Tpoint
+Draws a String at a Tpoint
 
 *)
-procedure drawStrings(s: TStringArray; p: TPoint);
-var
-  x: integer;
+procedure drawString(s: String; p: TPoint);
 begin
-  for x := 0 to high(s) do
-    NAS.Drawing.drawText(s[x], point(p.X,p.Y+(x*14)), 'SmallChars07', false, clWhite);
+    NAS.Drawing.drawText(s, p, 'SmallChars07', false, clWhite);
 end;
 
 (*
@@ -231,13 +232,13 @@ Draws a progress report
 *)
 procedure onScreenDisplay.drawProgress();
 var
-  txtPoint, statPoint: TPoint;
+  run, exp, xph, break: TPoint;
 begin
-  txtPoint := point(self.progress.loc.X + 30, self.progress.loc.Y + 20);
-  statPoint := point(txtPoint.X + 100, txtPoint.Y);
   NAS.Drawing.drawBitmap(self.progress.bmp, self.progress.loc);
-  drawStrings(self.progress.txt, txtPoint);
-  drawStrings(self.progress.stats, statPoint);
+  drawString(self.progress.stats[0], run);
+  drawString(self.progress.stats[1], exp);
+  drawString(self.progress.stats[2], xph);
+  drawString(self.progress.stats[3], break);
 end;
 
 (*
@@ -252,10 +253,10 @@ var
   txtPoint, statusPoint: TPoint;
 begin
   NAS.Drawing.drawBox(self.status.box, true, self.status.col);
-  txtPoint := point(self.status.box.X1 + 10, self.status.box.Y1 + 2);
-  drawStrings([self.status.txt], txtPoint);
-  statusPoint := point(self.status.box.X1 + 100, self.status.box.Y1 + 2);
-  drawStrings(self.status.state, statusPoint);
+  txtPoint := point(self.status.box.X1 + 10, self.status.box.Y1 + 4);
+  drawString([self.status.txt], txtPoint);
+  statusPoint := point(self.status.box.X1 + 70, self.status.box.Y1 + 4);
+  drawString(self.status.state, statusPoint);
 end;
 
 (*

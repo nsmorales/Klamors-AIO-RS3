@@ -34,7 +34,7 @@ var
   superHeatDTM, highAlchDTM, qpBuffDTM, regenDTM, qpDTM,
   activeqpDTM: Integer;
   //PROGRESS REPORT VARIABLES
-  totalKills, loads: Integer;
+  totalKills, loads, totalEXP, expPH: Integer;
   //Loots
   bigBones, lobster, hardClay, softClay, natRune, fireRune, ironOre,
   coalOre, mithrilOre: TLoot;
