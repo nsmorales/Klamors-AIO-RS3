@@ -1,0 +1,147 @@
+program kPlayerManager;
+
+//
+//  kPlayerManager.simba
+//  Author: Klamor
+//  Date: 23 January 2018
+//
+
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once NAS/NAS.simba}
+{$include_once Klamor/kOnScreenDisplay.simba}
+{$include_once Klamor/kTask.simba}
+{$include_once Klamor/kBiometrics.simba}
+{$f-}
+
+type
+  kPlayerManager = record
+    biometrics      : kBiometrics;
+    totalKills      : Integer;
+    totalEXP        : Integer;
+    totalLoads      : Integer;
+    tasks           : array of kTask;
+    currentTask     : kTask;
+    breakTimer      : TTimeMarker;
+    minsTilBreak    : Integer;
+    breakFor        : Integer;
+    breakVar        : Integer;
+  end;
+
+var
+  PlayerMgr: kPlayerManager;
+
+procedure kPlayerManager.init(_minsTilBreak, _breakFor, _breakVar: Integer);
+begin
+  self.biometrics.defaultHuman();
+  self.totalKills := 0;
+  self.totalLoads := 0;
+  self.totalEXP := 0;
+  self.tasks := setupTasks();
+  self.minsTilBreak := _minsTilBreak * 60000;
+  self.breakFor := _breakFor * 60000;
+  self.breakVar := _breakVar * 60000;
+end;
+
+procedure kPlayerManager.setCurrentTask();      //sets the current task to the lowest player skill level of all tasks
+var
+  x: integer;
+begin
+  for x := 1 to high(self.tasks) do
+    if self.tasks[x].getLevel() < self.tasks[x-1].getLevel() then
+      self.currentTask := self.tasks[x];
+end;
+
+procedure kPlayerManager.changeTask(task: kTask);        //override current task with a specific task
+begin
+  self.currentTask := task;
+end;
+
+function kPlayerManager.tilBreak(): Integer;
+begin
+  result := (self.minsTilBreak - players[currentPlayer].worked.getTime());
+end;
+
+procedure updateProgress();
+begin
+  OSD.progress.update([msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV),
+                      toStr(PlayerMgr.totalEXP),
+                      toStr(round((PlayerMgr.totalEXP * 60) / (players[currentPlayer].worked.getTime() / 60000))),
+                      msToTime(PlayerMgr.tilBreak, TIME_ABBREV)]);
+  OSD.refresh();
+end;
+
+procedure printProgress();
+begin
+  clearDebug();
+  writeLn('|=========================================|');
+  writeLn(PadR('|        Klamors AIO v' + toStr(1.0), 42) + '|');
+  writeLn(PadR('| Worked: ' + msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV), 42) + '|');
+  writeLn(PadR('| Kills: ' + toStr(PlayerMgr.totalKills), 42) + '|');
+  writeLn(PadR('| Kills/HR: ' + toStr(round((PlayerMgr.totalKills * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
+  writeLn(PadR('| Loads: ' + toStr(PlayerMgr.totalLoads), 42) + '|');
+  writeLn(PadR('| Loads/HR: ' + toStr(round((PlayerMgr.totalLoads * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
+  writeLn(PadR('| EXP: ' + toStr(PlayerMgr.totalEXP), 42) + '|');
+  writeLn(PadR('| EXP/HR: ' + toStr(round((PlayerMgr.totalEXP * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
+  writeLn('|=========================================|');
+end;
+
+procedure takeBreak();     //borrowed from The Mayor's Resource Dungeon Miner
+var
+  time: Integer;
+begin
+  if (PlayerMgr.tilBreak() < 0) then
+  begin
+    time := round(PlayerMgr.breakVar * 0.1); // Add +/- 10% to break time
+    time := PlayerMgr.breakFor + random(-time, time);
+    OSD.status.update(['Taking a ' + toStr(round(time / 60000, 2)) + ' minute break']);
+    mouseOffClient(OFF_CLIENT_RANDOM);
+    sleep(time);
+    if not isLoggedIn() then
+      players[currentPlayer].login();
+    players[currentPlayer].worked.reset();
+    players[currentPlayer].worked.start();
+  end else
+    writeLn('Mins til break: ' + toStr(PlayerMgr.tilBreak()));
+end;
+
+function kPlayerManager.setup(): boolean;
+begin
+  if not isLoggedIn() then
+    players[currentPlayer].login()
+  else
+  begin
+    writeLn('Not Logged In!');
+    exit(false);
+  end;
+
+  addOnTerminate('printProgress');
+
+  self.init(60, 17, 7);       //minsTilBreak - 60mins, breakFor - 17mins, breakVar- 7mins
+  self.setCurrentTask();
+  //self.changeTask(task);    //USE THIS FOR DEBUGGING PURPOSES
+  SPS.setup(self.currentTask.area.mapName, RUNESCAPE_SURFACE);
+  self.breakTimer.start();
+  players[currentPlayer].worked.start();
+
+  result := true;
+end;
+
+procedure kPlayerManager.doMain();
+begin
+  OSD.status.update(['Initializing Player Manager...']);
+  OSD.refresh();
+
+  if not self.setup() then
+  begin
+    writeLn('Failed to setup Player Manager!');
+    writeLn('Terminating Script!');
+    terminateScript();
+  end;
+
+  repeat
+    updateProgress();
+    takeBreak();
+    PlayerMgr.currentTask.doTask();
+  until false;
+
+end;

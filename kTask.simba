@@ -1,14 +1,15 @@
-program kTask;
-
-{$Iinclude_once SRL-6-SIMBA1.2/SRL.simba}
-{$Iinclude_once SPS/lib/SPS-rs3.simba}
-{$Iinclude_once Klamor/kGameObject.simba}
-{$include_once klamor/kMisc.simba}
+{$Include_once SRL-6-SIMBA1.2/SRL.simba}
+{$Include_once SPS/lib/SPS-rs3.simba}
+{$include_once NAS/NAS.simba}
+{$include_once Klamor/kOnScreenDisplay.simba}
+{$Include_once Klamor/kGameObject.simba}
+{$include_once Klamor/kCombat.simba}
+{$include_once Klamor/kMisc.simba}
 {$f-}
 
 type
-  tTaskArea = record
-    mapName     : TStringArray;      //array of map name(s)
+  kTaskArea = record
+    mapName     : String;            //SPS map name
     bankLoc     : TPointArray;       //Bank Location Polygon
     gatherLoc   : TPointArray;       //Gather Location Polygon
     objectLoc   : T2DPointArray;     //array of Object Location Polygon(s)
@@ -18,49 +19,88 @@ type
     lodestone   : String;            //string of TaskArea lodestone (eg. 'Lumbridge')
   end;
 
-  TTask = record             //stores information for tasks
-    area        : TTaskArea;
+  kTask = record             //stores information for tasks
+    name        : string;
+    area        : kTaskArea;
     skill       : Integer;
     minLevel    : Integer;
     maxLevel    : Integer;
-    loot        : array of Tloot;
-    gameObject  : array of TGameObject;
+    //loot      : array of kloot;
+    monster     : kMonster;
+    tree        : kTree;
+    ore         : kOre;
+    bank        : kBank;
   end;
 
-procedure TTask.init(_name, _mapName, _lode, _bankCol: String; _skill, _minLevel, _maxLevel: Integer; _toTask, _toBank: T2DPointArray; _location, _bankLoc: TPointArray);
+//
+//    Defined Task Areas
+//
+var
+  GE: kTaskArea;
+
+//
+//    Defined Tasks
+//
+var
+  fletchNstring, superHeat, highAlch: kTask;
+
+procedure kTaskArea.init(_mapName: String; _bankLoc, _gatherLoc: TPointArray; _objectLoc: T2DPointArray;
+                         _toBank, _toGather: TPointArray; _toObject: T2DPointArray; _lodestone: String);
+begin
+  self.mapName := _mapName;
+  self.bankLoc := _bankLoc;
+  self.gatherLoc := _gatherLoc;
+  self.objectLoc := _objectLoc;
+  self.toBank := _toBank;
+  self.toGather := _toGather;
+  self.toObject := _toObject;
+  self.lodestone := _lodestone;
+end;
+
+procedure setupTaskAreas();
+begin
+  GE.init('Grand_Exchange', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
+                     [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Varrock');
+end;
+
+procedure kTask.init(_name: String; _area: kTaskArea; _skill, _minLevel, _maxLevel: Integer;
+                     _monster: kMonster; _tree: kTree; _ore: kOre; _bank: kBank);
 begin
   self.name := _name;
-  self.mapName := _mapName;
-  self.lode := _lode;
-  self.bankCol := _bankCol;
+  self.area := _area;
   self.skill := _skill;
   self.minLevel := _minLevel;
   self.maxLevel := _maxLevel;
-  self.toTask := _toTask;
-  self.toBank := _toBank;
-  self.location := _location;
-  self.bankLoc := _bankLoc;
+  self.monster := _monster;
+  self.tree := _tree;
+  self.ore := _ore;
+  self.bank := _bank;
 end;
 
-function TTask.levelCheck(): boolean;   //returns true if the players skill levels fall within the range of the task
+procedure initTasks()
 begin
-  gameTabs.openTab(TAB_STATS);
-  if (tabStats.getSkillLevel(self.skill) > self.minLevel) and (tabStats.getSkillLevel(self.skill) < maxLevel) then
-    exit(true)
-  else
-  begin
-    if players[currentPlayer].booleans[DEBUG] then
-      writeLn('Our player does not meet the skill requirements for ', self.name);
-  end;
+  fletchNstring.init('Fletch & String', GE, SKILL_FLETCHING, 1, 99, [], [], [], Gray);
+  superHeat.init('Super Heat', GE, SKILL_MAGIC, 43, 99, [], [], [], Gray);
+  highAlch.init('High Alch', GE, SKILL_MAGIC, 55, 99, [], [], [], Gray);
 end;
 
-function TTask.getLevel(): Integer;
+function kTask.getLevel(): Integer;
 begin
-  gameTabs.openTab(TAB_STATS);
   result := tabStats.getSkillLevel(self.skill);
 end;
 
-function TTask.isOnMap(): Boolean;     //returns true if the player is at the right location for the task
+function kTask.levelCheck(): boolean;   //returns true if the players skill levels fall within the range of the task
+begin
+  Result := false;
+  if not (gameTabs.getActiveTab() = TAB_STATS) then
+    gameTabs.openTab(TAB_STATS);
+  if (self.getLevel() >= self.minLevel) and (self.getLevel() <= maxLevel) then
+    exit(true)
+  else
+    writeLn('Our player does not meet the skill requirements for ', self.name);
+end;
+
+function kTask.isOnMap(): Boolean;     //returns true if the player is at the right location for the task
 var
   pos: TPoint;
 begin
@@ -68,7 +108,7 @@ begin
   if (pos.x <> -1) and (pos.y <> -1) then result := true;
 end;
 
-function TTask.teleTo(): Boolean;        //returns true if we successfully navigated to the task area
+function kTask.teleTo(): Boolean;        //returns true if we successfully teleported to the task area
 begin
   case self.lode of
     'Lumbridge': lodestoneScreen.teleportTo(LOCATION_LUMBRIDGE);
@@ -83,10 +123,10 @@ begin
     'Port Sarim': lodestoneScreen.teleportTo(LOCATION_PORT_SARIM);
   end;
   wait(10000 + random(5000));
-  if self.isOnMap() then result := true;
+  Result := self.isOnMap();
 end;
 
-procedure TTask.randomLocation()    //moves player to random(high(task.location))
+procedure kTask.randomLocation()    //moves player to random(high(task.location))
 begin
 
   //if not self.isOnMap then self.teleTo();
@@ -94,35 +134,31 @@ begin
   sps.blindWalk(self.location[random(high(self.location))]);        //walk to a random point on ttask.location array
 end;
 
-procedure TTask.goToTask(num: Integer; area: TPointArray)
+function kTask.goToObject(obj: integer): boolean;
 begin
-  //if not self.isOnMap() then self.teleTo();
-  writeLn('Walking to Task Location...');
-  //repeat
-    if sps.walkPath(self.toTask[num]) then
-      minimap.waitPlayerMoving()
-    else if sps.blindWalk(self.toTask[num, length(self.toTask[num])]) then
-      minimap.waitPlayerMoving();
-  //until SPS.isInPolygon(area);
+  OSD.status.update(['Walking to Task Location...']);
+  OSD.refresh();
+  if SPS.walkPath(self.area.toObject[obj], true) then
+    exit(true);
 end;
 
-procedure TTask.goToBank()
+function kTask.goToBank(): boolean;
 begin
-  //if not self.isOnMap() then self.teleTo();
-  writeLn('Walking to Bank...');
-  if sps.walkPath(self.toBank[random(length(self.toBank))]) then
-    minimap.waitPlayerMoving()
-  else if sps.blindWalk(self.bankLoc[random(length(self.bankLoc))]) then
-    minimap.waitPlayerMoving();
+  OSD.status.update(['Walking to Bank...']);
+  OSD.refresh();
+  if SPS.walkPath(self.area.toBank, true) then
+    exit(true);
 end;
 
-procedure TTask.bank(isPreset, tele: Boolean; preset: Integer)     //banks with the purple/blue bankers
+procedure kTask.bank(isPreset, tele: Boolean; preset: Integer)
 var
   failTimer: TTimeMarker;
 
 begin
-
-  if not SPS.isInPolygon(self.bankloc) then begin
+  OSD.status.update(['Banking...']);
+  OSD.refresh();
+  if not SPS.isInPolygon(self.area.bankLoc) then
+  begin
     case tele of
       false: self.goToBank();
       true: begin
@@ -139,23 +175,16 @@ begin
 
   repeat
     if bankScreen.isOpen() then break;
-    case self.bankCol of
-      'blue': if Bank_Blue.find(false) then
-        minimap.waitPlayerMoving();
-      'gray': if Bank_Gray.find(false) then
-        minimap.waitPlayerMoving();
-      'chest': if Bank_Chest.find(false) then
-        minimap.waitPlayerMoving();
-    end;
+    if self.bank.find() then
+      minimap.waitPlayerMoving();
     repeat
       wait(randomRange(600,700));
-    until bankScreen.isOpen() or (failTimer.getTime() > 1200);
+    until bankScreen.isOpen() or (failTimer.getTime() > 1800);
   until bankScreen.isOpen() or (failTimer.getTime() > 60000);
 
   if failTimer.getTime() > 60000 then begin
     writeLn('Couldnt find the bank!');
-    writeLn('Exiting to lobby...');
-    players[currentPlayer].exittolobby();
+    writeLn('Terminating Script!');
     terminateScript();
   end;
 
@@ -182,56 +211,30 @@ begin
     pressKey(27);
 end;
 
-function TTask.isReady(): Boolean;              //returns true/false if char is ready to do a task
-var
-  l, j, x, y: integer;
+function kTask.isReady(): Boolean;              //returns true/false if char is ready to do a task
 begin
   if not self.levelCheck() then
   begin
     writeLn('We do not meet the level requirements for ', self.name, 'task.');
-    exit(false);  //if we don't mee the level reqs for the task, then exit(false)
+    exit(false);
   end;
   if not self.isOnMap() then
   begin
     writeLn('We are not in the correct area for ', self.name, 'task.');
     exit(false);
-  end;     //if we aren't in the right area, then exit(false)
+  end;
   result := true;
 end;
 
-procedure TTask.doCombatTask();         //procedure to handle all combat related tasks
-var
-  lootTimer: TTimeMarker;
-  x, tofight: Integer;
-
-begin
-  if not self.isOnMap() then exit;
-  if not SPS.isInPolygon(self.location) then
-    self.goToTask(random(2), self.location)
-  else
-    lootTimer.start();
-    toFight := randomRange(45000,90000);
-    repeat
-      healthCheck();
-      self.monster.combat();
-    until lootTimer.getTime() > toFight;
-
-    if targetInfo.hasTarget() then repeat
-      wait(randomRange(250,500));
-    until not targetInfo.hasTarget();
-
-    repeat
-      if self.loot.find(false) then begin
-        repeat
-          minimap.waitPlayerMoving();
-        until lootScreen.isOpen();
-        lootTimer.reset();
-        handleLoot();
-      end;
-    until not self.loot.find(true);
+function kTask.doCombatTask(): boolean;
+begin                                           //NO NAVIGATION SUPPORTED AT THIS TIME
+  if not self.isOnMap() then exit(false);
+  if kCombatMgr.healthCheck() then
+    if kCombatMgr.fight() then
+      exit(true);
 end;
 
-procedure TTask.doGatheringTask();
+procedure kTask.doGatheringTask();
 var
   count: integer;
   failTimer: TTimeMarker;
@@ -239,8 +242,8 @@ var
 begin
   writeLn('Starting Gathering Task: ', self.gameObject.name);
   if not self.isOnMap() then exit;
-  if not SPS.isInPolygon(self.location) then
-    self.goToTask(random(2), self.location)
+  if not SPS.isInPolygon(self.area.gatherLoc) then
+    SPS.walkPath(self.area.toGather, true);
   repeat
     count := tabBackpack.count();
     failTimer.reset();
@@ -266,18 +269,25 @@ begin
   failTimer.reset();
 end;
 
-procedure TTask.doTask();
+procedure kTask.doTask();
 begin
-  if not self.isOnMap() then
-    exit;
 
-  case self.name of
-    'vwClay': varrockWestClay();
-    'Hill-Giant': edgevilleDungeonHillGiants();
-    'bvUrns': barbVillageUrns();
-    'vwIron': varrockWestIron();
-    'geFnS': geFletchNString(2);
-    'caSmelting': caSmelt(2);
-  end;
 end;
 
+function setupTasks(): array of kTask;
+var
+  tasks: array of kTask;
+begin
+  //if kTask.levelCheck() then
+    //tasks := (tasks + kTask);
+
+
+  if length(tasks) < 0 then
+  begin
+    writeLn('We cant do any tasks!');
+    writeLn('Shutting down!');
+    terminateScript();
+  end;
+
+  result := tasks;
+end;

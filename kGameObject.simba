@@ -10,6 +10,8 @@ objects. (trees / ores / NPCs / etc.)
 
 {$include_once SRL-6-SIMBA1.2/SRL.simba}
 {$include_once NAS/NAS.simba}
+{$include_once Klamor/kOnScreenDisplay.simba}
+
 {$f-}
 
 (*
@@ -28,26 +30,24 @@ type
   end;
 
 (*
-**type kMonster**
+**type kBank**
 
-A Type that stores cols/gameObject settings for monsters.
+A type that stores the cols/gameObject settings for trees.
 
 *)
 type
-  kMonster = record
-    constXP       : integer;
-    level         : integer;
-    color         : TColorData;
+  kBank = record
+    color: TColorData;
   end;
 
 (*
-**var kMonster**
+**var kBank**
 
-A variable through which scripters can access the kMonster methods.
+A variable through which scripters can access the kBank methods.
 
 *)
-//var
-  //Chicken, Cow: kMonster;
+var
+  Blue, Gray, Chest: kBank;
 
 (*
 **type kTree**
@@ -152,7 +152,7 @@ The following methods should be called through the various kTree variables.
 
 Example:
 
-    writeLn('Willow XP: ', totr(Willow.settings.xp));
+    writeLn('Willow XP: ', toStr(Willow.settings.xp));
 *)
 
 {*
@@ -206,7 +206,7 @@ begin
   Oak.init([5005148, 12, [2, [0.59, 0.49, 0.00]]], [3555643, 10, [2, [1.17, 0.32, 0.00]]], [12435401, 0, [2, [0.00, 0.00, 0.00]]], ['Oak Tree', ['Oak'], 'hop down', getPrice('Oak_Logs'), round(37.5)]);
   Willow.init([1057287, 6, [2, [0.32, 5.90, 0.00]]], [1319176, 5, [2, [0.28, 5.97, 0.00]]], [4149804, 3, [2, [0.16, 0.39, 0.00]]], ['Willow Tree', ['Willow'], 'hop down', getPrice('Willow_Logs'), round(67.5)]);
   Teak.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Teak Tree', ['Teak'], 'hop down', getPrice('Teak_Logs'), 85]);
-  Maple.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Maple Tree', ['Maple'], 'hop down', getPrice('Maple_Logs'), 100]);
+  Maple.init([991835, 17, [2, [0.25, 1.46, 0.00]]], [994151, 17, [2, [0.08, 1.29, 0.00]]], [6135002, 7, [2, [0.09, 1.70, 0.00]]], ['Maple Tree', ['Maple'], 'hop down', getPrice('Maple_Logs'), 100]);
   Mahogany.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Mahogany Tree', ['Mahogany'], 'hop down', getPrice('Mahogany_Logs'), 125]);
   Yew.init([3957886, 10, [2, [0.05, 0.13, 0.00]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Yew Tree', ['Yew'], 'hop down', getPrice('Yew_Logs'), 175]);
   Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Magic Tree', ['Magic'], 'hop down', getPrice('Magic_Logs'), 250]);
@@ -239,12 +239,20 @@ var
   treeATPA, good, bad, TPAs: T2DPointArray;
   i, x, y: Integer;
   searchBox: TBox;
+  failTimer: TTimeMarker;
 begin
+  OSD.status.update(['Finding: ' + self.settings.name]);
+  OSD.refresh();
   setLength(TPAs, 3);
-  searchBox := [mainScreen.playerBox.X1 - 500, mainScreen.playerBox.Y1 - 300, mainScreen.playerBox.X2 + 500, mainScreen.playerBox.Y2 + 300];
+  searchBox := [mainScreen.playerBox.X1 - 600, mainScreen.playerBox.Y1 - 400, mainScreen.playerBox.X2 + 600, mainScreen.playerBox.Y2 + 400];
+
+  failTimer.reset();
+  failTimer.start();
 
   {$IFDEF NAS_DRAWING}
-    NAS.Drawing.drawBox(searchBox, false, clBlue);
+    NAS.Drawing.Drawbox(searchbox, false, clBlue);
+    wait(100);
+    OSD.refresh();
   {$ENDIF}
 
   self.tree_col.gatherIn(TPAs[0], searchBox);
@@ -272,6 +280,11 @@ begin
 
   for i := 0 to high(good) do
   begin
+    if failTimer.getTime() > 15000 then
+      exit(false);
+    {$IFDEF NAS_DRAWING}
+      NAS.Drawing.drawBox(good[i].getBounds(), false, clBlue);
+    {$ENDIF}
     mouse(good[i].getBounds().getGaussPoint());
     if isMouseOverText(self.settings.overText) then
       if hoverNext then
@@ -335,13 +348,7 @@ begin
   repeat
     avg := getPixelShiftAverage(mainscreen.playerBox, 100, 300);
 
-    {$IFDEF NAS_DRAWING}
-      NAS.Drawing.drawBox(mainscreen.playerBox, false, clRed);
-      NAS.Drawing.drawText(self.settings.name + '.chopDone(): ' + intToStr(avg), txtPoint, 'SmallChars07', false, clWhite);
-      NAS.Drawing.clear();
-    {$ENDIF}
-
-    if (inRange(avg, 0, 600)) then
+    if (inRange(avg, 0, 500)) then
     begin
       Inc(done);
 
@@ -353,15 +360,50 @@ begin
     if (done >= 2) or (tabBackpack.isFull()) then
     begin
       Result := True;
-      {$IFDEF NAS_DRAWING}
-        NAS.Drawing.drawBox(mainscreen.playerBox, false, clRed);
-        NAS.Drawing.drawText(self.settings.name + '.chopDone(): ' + toStr(result), txtPoint, 'SmallChars07', false, clWhite);
-        NAS.Drawing.clear();
-      {$ENDIF}
       Break;
     end;
 
   until (timeout.getTime() > max) or (not isLoggedIn());
+end;
+
+(*
+kTree.cut(tree: kTree)
+======================
+
+  procedure kTree.cut(tree: kTree)
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 15 Jan 2018
+
+Example:
+
+      if ktree.cut(tree) then
+        OSD.status.update(['CHOPPIN DEM TREES!']);
+*)
+function kTree.cut(): integer;
+var
+  invStart: Integer;
+begin
+  if tabBackpack.isFull() then exit;
+  invStart := tabBackpack.count();
+
+  while not tabBackpack.isFull() do
+  begin
+    if self.findTree(false) then
+    begin
+      OSD.status.update(['Cutting: ' + self.settings.name]);
+      OSD.refresh();
+      repeat
+        wait(600);
+      until self.chopDone() or tabBackpack.isFull();
+    end else
+    begin
+      OSD.status.update(['Didnt find: ' + self.settings.name]);
+    end;
+  end;
+  result := (28 - invStart);
 end;
 
 (*
@@ -681,7 +723,13 @@ begin
 end;
 
 begin
-  initTrees();
-  initOres();
-  initWisps();
+  //initTrees();
+  //initOres();
+  //initWisps();
+  clearDebug();
+  writeLn('SOP II: ' + toStr((35 * getPrice('Bright_energy')) + (getPrice('Sapphire_necklace'))));
+  writeLn('');
+  writeLn('Green Dragongide: ' + toStr(getPrice('Green_dragonhide')*10));
+  writeLn('Blue Dragongide: ' + toStr(getPrice('Blue_dragonhide')*10));
+
 end;

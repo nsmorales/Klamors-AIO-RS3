@@ -1,76 +1,263 @@
-{$include_once srl-6/srl.simba}
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once NAS/NAS.simba}
+{$include_once Klamor/kOnScreenDisplay.simba}
 {$include_once bonsai/blCombat.simba}
-{$include_once klamor/kMisc.simba}
 {$f-}
 
+(*
+**type kMonster**
+
+A Type that stores info for monsters.
+
+*)
 type
-
-  TMonster = record     //stores information for monsters
-    name: String;
-    overText: TStringArray;
+  kMonster = record
+    constXP       : extended;
+    cmbtXP        : extended;
+    name          : string;
   end;
 
-procedure TMonster.init(_name: String; _overText: TStringArray)
-begin
-  self.name := _name;
-  self.overText := _overText;
-end;
+(*
+**var kMonster**
 
-function TMonster.attack(): boolean;         //finds a monster and clicks it
-var                                          //returns true if we are in combat after clicking
-  targetInfo: TRSTargetInfo;
-  ccTorso: Tnpc;
-begin
-  ccTorso.init(self.name);
-  if combatMgr.attack(ccTorso, false, nil, MOUSE_RIGHT) then
-  begin
-    minimap.waitPlayerMoving();
-    wait(500 + random(500));
-    if targetInfo.hasTarget() then
-      result := true;
-  end;
-end;
+A variable through which scripters can access the kMonster info.
 
-procedure TMonster.combat()      //handles combat guidelines for fight/looting monsters
+*)
 var
-  actionBar: TRSActionBar;
-  fighting: TTimeMarker;
-  hasAttacked, usedAbility: boolean;
+  Chicken, Cow, FleshCrawler, MossGiant, FireGiant: kMonster;
+
+(*
+init
+----
+
+  procedure kMonster.init(_constXP, _cmbtXP: extended; _level: _name: String);
+
+Initializes a kMonster object.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 23 January 2018
+
+Example:
+
+    monster.init()
+*)
+
+procedure kMonster.init(_constXP, _cmbtXP: extended; _name: string);
 begin
-  if targetInfo.hasTarget() then begin
-    repeat
-      //if (actionBar.__getPercent(AB_BAR_ADRENALINE) < 50) then
-      if (usedAbility = false) and (random(3) = 0) then begin
-        actionBarNumber(6 + random(4));      //use a random skill 6-9
-        usedAbility := true;
-      end;
-      antiBan();
-    until not targetInfo.hasTarget();
-
-    inc(totalKills);
-    usedAbility := false;
-    exit();
-  end;
-
-  hasAttacked := false;
-  fighting.reset();
-  fighting.start();
-
-  if self.attack() then begin
-    hasAttacked := true;
-    usedAbility := false;
-
-    repeat
-      //if (actionBar.__getPercent(AB_BAR_ADRENALINE) < 50) then
-      if (usedAbility = false) and (random(3) = 0) then begin
-        actionBarNumber(6 + random(4));      //use a random skill 6-9
-        usedAbility := true;
-      end;
-      antiBan();
-    until not targetInfo.hasTarget();
-
-    inc(totalKills);
-    usedAbility := false;
-  end;
+  self.constXP := _constXP;
+  self.cmbtXP := _cmbtXP;
+  self.name := _name;
 end;
+
+(*
+initMons
+--------
+
+    procedure initMons();
+
+Initializes known monster objects.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 23 January 2018
+
+Example:
+
+      initMons();
+*)
+
+procedure initMons();
+begin       {_constXP, _cmbtXP: extended; _settings: kGameObject}
+  Chicken.init(8.2, 24.9, 'Chicken');
+  Cow.init(8.4, 25.5, 'Cow');
+  FleshCrawler.init(42.2, 128.0, 'Flesh-crawler');
+  MossGiant.init(136.5, 45.0, 'Moss-giant');
+  FireGiant.init(140.1, 424.8, 'Fire-Giant');
+end;
+
+(*
+**type kCombatManager**
+
+A Type that stores info for combat procedures.
+
+*)
+type
+  kCombatManager = record
+    regenHP         : integer;           //percent HP to regenerate at
+    regenAD         : integer;           //percent AD to regenerate at
+    eatPercent      : integer;           //percent to eat at
+    quitPercent     : integer;           //percent to quit at
+    combatFlag      : boolean;           //inCombat Flag
+    maxFight        : integer;           //max time to fight for
+    maxSearch       : integer;           //max time to search for
+    restFlag        : boolean;           //isResting Flag
+    npc             : Tnpc;              //blCombat.simba NPC
+    monster         : kMonster;          //monster to fight
+  end;
+
+(*
+**var kCombatMgr**
+
+A variable through which scripters can access the kCombatManager methods.
+
+*)
+var
+  kCombatMgr: kCombatManager;
+
+(*
+kCombatManager methods
+~~~~~~~~~~~~~~~~~~~~~~
+
+The following methods should be called through the various kCombatMgr variable.
+
+Example:
+
+    if kCombatMgr.healthCheck() then
+      kCombatMgr.fight();
+*)
+
+(*
+kCombatManager.setCombatFlag()
+----------------
+
+    procedure kCombatManager.setCombatFlag();
+
+Sets the kCombatManager.combatFlag to detectLock();
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 23 January 2018
+
+Example:
+
+      kCombatMgr.setCombatFlag();
+      if kCombatMgr.combatFlag then
+        writeLn('Were in combat!');
+
+*)
+procedure kCombatManager.setCombatFlag();
+begin
+  self.combatFlag := detectLock();
+end;
+
+(*
+kCombatManager.healthCheck()
+----------------
+
+    function kCombatManager.healthCheck(): boolean;
+
+Returns true if we have enough health to continue fighting.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 23 January 2018
+
+Example:
+
+    if kCombatMgr.healthCheck() then
+      kCombatMgr.fight();
+
+*)
+function kCombatManager.healthCheck(): boolean;
+begin
+  OSD.status.update(['Health Check: ' + toStr(actionBar.getHPPercent())]);
+  OSD.refresh();
+  if ((actionbar.getHPPercent() < self.eatPercent) and detectLock() and (actionbar.getAdrenalinePercent() > 50)) then
+  begin
+    OSD.status.update(['Using SGS Special Attack!']);
+    OSD.refresh();
+    actionBar.clickSlot(1, MOUSE_LEFT);
+    exit;
+  end;
+  if actionBar.getHPPercent() < self.quitPercent then
+  begin
+    result := false;
+    writeLn('Terminating due to low HP!');
+    terminateScript();
+  end
+  else if actionBar.getHPPercent() < self.eatPercent then
+  begin
+    OSD.status.update(['Eating Food...']);
+    OSD.refresh();
+    actionBar.clickSlot(12, MOUSE_LEFT);
+    exit(false);
+  end
+  else if (actionbar.getHPPercent() < self.regenHP) and (actionBar.getAdrenalinePercent() > self.regenAD) then
+  begin
+    if detectLock() then exit(false);
+    OSD.status.update(['Activating Regeneration...']);
+    OSD.refresh();
+    actionBar.setHealing(true);
+    repeat
+      if detectLock() then exit(false);
+      wait(600 + random(600));
+    until actionBar.getAdrenalinePercent() = 0;
+    exit(false);
+  end
+  else
+    Result := not detectLock();
+end;
+
+(*
+init
+----
+
+  procedure kCombatManager.init(_regenHP, _regenAD, _eatPercent, _quitPercent, _maxFight, _maxSearch: Integer; _monster: kMonster);
+
+Initializes a kCombatManager object.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 23 January 2018
+
+Example:
+
+    kCombatMgr.init()
+*)
+procedure kCombatManager.init(_regenHP, _regenAD, _eatPercent, _quitPercent, _maxFight, _maxSearch: Integer; _monster: kMonster);
+begin
+  self.regenHP := _regenHP;
+  self.regenAD := _regenAD;
+  self.eatPercent := _eatPercent;
+  self.quitPercent := _quitPercent;
+  self.maxFight := _maxFight;
+  self.maxSearch := maxSearch;
+  self.monster := _monster;
+  self.npc.init(self.monster.name);
+  self.setCombatFlag();
+  self.restFlag := not self.healthCheck();
+end;
+
+(*
+kCombatManager.fight()
+----------------
+
+    function kCombatManager.fight(): boolean;
+
+Returns true if we complete a battle with a monster.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 23 January 2018
+
+Example:
+
+    if kCombatMgr.fight() then
+      inc(totalKills);
+
+*)
+function kCombatManager.fight(): boolean;
+begin
+  result := combatMgr.attack(self.npc, true {wait until dead},
+         nil {use default foodhandler}, MOUSE_RIGHT);
+end;
+
+
 

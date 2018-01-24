@@ -4,7 +4,7 @@
 // Updated: 12/6/17
 //
 
-{$include_once srl-6/srl.simba}
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
 {$f-}
 
 //
@@ -35,9 +35,6 @@ type
     bored : boolean;        //bored (true/false)
   end;
 
-var
-  human: kBiometrics;
-
 procedure kBiometrics.init(_mSpeed, _rTime, _focus, _fatigue: extended; _bored: boolean);
 begin
   self.mSpeed := _mSpeed;
@@ -59,7 +56,7 @@ end;
 
 procedure kBiometrics.defaultHuman();
 begin
-  human.init(20.0, 250.0, 100.0, 0.00, false);
+  self.init(20.0, 250.0, 100.0, 0.00, false);
 end;
 
 procedure kBiometrics.tired();
@@ -78,7 +75,7 @@ procedure kBiometrics.energize();
 begin
   self.focus := (self.focus + randomRange(30.0,50.0));                //adds 30-50% focus
     if (self.focus > maxFocus) then self.focus := maxFocus;
-  self.fatigue := (self.focus - randomRange(5,10);                    //lose 5-10% fatigue
+  self.fatigue := (self.focus - randomRange(5,10));                    //lose 5-10% fatigue
     if (self.fatigue < minFatigue) then self.fatigue := minFatigue;
   self.mSpeed := (self.mSpeed + randomRange(15,20));                  //speeds up mouseSpeed by 15-20 interval
     if (self.mSpeed > maxmSpeed) then self.mSpeed := maxmSpeed;
@@ -88,7 +85,7 @@ end;
 
 procedure kBiometrics.randomize();
 begin
-  self.focus := randomRange(minFoxus,maxFocus);
+  self.focus := randomRange(minFocus,maxFocus);
   self.fatigue := randomRange(minFatigue,maxFatigue);
   self.mSpeed := randomRange(minmSpeed,maxmSpeed);
   self.rTime := randomRange(minrTime,maxrTime);

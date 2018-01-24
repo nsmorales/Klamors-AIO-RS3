@@ -9,7 +9,6 @@ required for Klamor's NXT-oriented scripts.
 
 {$include_once NAS/NAS.simba}
 {$include_once SRL-6-SIMBA1.2/SRL.simba}
-{$include_once Klamor/kMisc.simba}
 {$f-}
 
 (*
@@ -86,19 +85,14 @@ Example:
 
 procedure statusOverlay.__init();
 begin
-  self.box := [chatbox.x1, (chatbox.y1 - 18), chabox.x2, chatbox.y1];    //status box ontop of chatbox tabs
-  case random(11) of
+  self.box := [chatbox.x1, (chatbox.y1 - 28), chatbox.x2, chatbox.y1];    //status box ontop of chatbox tabs
+  case random(6) of
                 0: self.col := clRed;
                 1: self.col := clGreen;
                 2: self.col := clBlue;
-                3: self.col := clPurple;                            //there HAS to be a shorter/better way to do this... right?
-                4: self.col := clYellow;                            //just want to pick a random color each time :P
-                5: self.col := clTeal;
-                6: self.col := clAqua;
-                7: self.col := clOrange;
-                8: self.col := clFuchsia;
-                9: self.col := clNavy;
-                10: self.col := clMaroon;
+                3: self.col := clOrange;
+                4: self.col := clNavy;
+                5: self.col := clMaroon;
               end;
   self.txt := 'Status: ';
   self.state := ['Initializing...'];
@@ -147,9 +141,9 @@ begin
     fastReplaceColor(self.bmp, 0, 1);
   self.loc := point(chatbox.x1, chatbox.y1);
   setLength(self.stats, 4);
-  self.stats[0] := msToTime(players[currentPlayer].worked.getTime(), 0);
-  self.stats[1] := toStr(totalEXP);
-  self.stats[2] := toStr(expPH);
+  self.stats[0] := toStr(0);
+  self.stats[1] := toStr(0);
+  self.stats[2] := toStr(0);
   self.stats[3] := 'N/A - Not Implemented';	
 end;
 
@@ -198,6 +192,7 @@ to function properly with SRL-6/Simba1.2
 *)
 procedure drawUI();
 begin
+{$IFDEF NAS_DRAWING}
   NAS.Drawing.drawBox(mainScreen.getBounds(), false, clWhite);
   NAS.Drawing.drawBox(miniMap.getBounds(), false, clWhite);
   NAS.Drawing.drawBox(actionBar.getBounds(), false, clWhite);
@@ -207,6 +202,7 @@ begin
   NAS.Drawing.drawBox(GameTabs.__tabSelectionArea, false, clWhite);
   NAS.Drawing.drawBox(GameTabs.tabArea, false, clWhite);
   NAS.Drawing.drawBox(GameTabs.getActiveTabArea(), false, clWhite);
+{$ENDIF}
 end;
 
 (*
@@ -220,7 +216,9 @@ Draws a String at a Tpoint
 *)
 procedure drawString(s: String; p: TPoint);
 begin
+  {$IFDEF NAS_DRAWING}
     NAS.Drawing.drawText(s, p, 'SmallChars07', false, clWhite);
+  {$ENDIF}
 end;
 
 (*
@@ -234,7 +232,14 @@ procedure onScreenDisplay.drawProgress();
 var
   run, exp, xph, break: TPoint;
 begin
+  {$IFDEF NAS_DRAWING}
   NAS.Drawing.drawBitmap(self.progress.bmp, self.progress.loc);
+  {$ENDIF}
+  run := point((chatbox.x1 + 105),(chatbox.y1 + 68));
+  exp := point((chatbox.x1 + 65),(chatbox.y1 + 95));
+  xph := point((chatbox.x1 + 100),(chatbox.y1 + 125));
+  break := point((chatbox.x1 + 125),(chatbox.y1 + 155));
+  self.progress.stats[0] := toStr(msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV));
   drawString(self.progress.stats[0], run);
   drawString(self.progress.stats[1], exp);
   drawString(self.progress.stats[2], xph);
@@ -251,12 +256,16 @@ Draws a statusOverlay
 procedure onScreenDisplay.drawStatus();
 var
   txtPoint, statusPoint: TPoint;
+  x: Integer;
 begin
+  {$IFDEF NAS_DRAWING}
   NAS.Drawing.drawBox(self.status.box, true, self.status.col);
-  txtPoint := point(self.status.box.X1 + 10, self.status.box.Y1 + 4);
-  drawString([self.status.txt], txtPoint);
-  statusPoint := point(self.status.box.X1 + 70, self.status.box.Y1 + 4);
-  drawString(self.status.state, statusPoint);
+  txtPoint := point(self.status.box.X1 + 10, self.status.box.Y1 + 8);
+  drawString(self.status.txt, txtPoint);
+  statusPoint := point(self.status.box.X1 + 70, self.status.box.Y1 + 8);
+  for x := 0 to high(self.status.state) do
+    drawString(self.status.state[x], point((statusPoint.x + (x*75)), statusPoint.y));
+  {$ENDIF}
 end;
 
 (*
@@ -268,9 +277,11 @@ Refreshes the onScreenDisplay.
 *)
 procedure onScreenDisplay.refresh();
 begin
+  {$IFDEF NAS_DRAWING}
   NAS.Drawing.Clear();
   self.drawProgress();
   self.drawStatus();
+  {$ENDIF}
 end;
 
 begin
