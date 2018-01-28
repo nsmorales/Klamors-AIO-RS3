@@ -33,20 +33,8 @@ var
 begin
   availableTasks := setupTasks();
   for x := 0 to high(availableTasks) do
-  begin
-    if self.skillsToTrain[SKILL_ATTACK] and (availableTasks[x].skill = SKILL_ATTACK) then
+    if self.skillsToTrain[availableTasks[x].skill] then
       self.tasks := self.tasks + availableTasks[x];
-    if self.skillsToTrain[SKILL_WOODCUTTING] and (availableTasks[x].skill = SKILL_WOODCUTTING) then
-      self.tasks := self.tasks + availableTasks[x];
-    if self.skillsToTrain[SKILL_FLETCHING] and (availableTasks[x].skill = SKILL_FLETCHING) then
-      self.tasks := self.tasks + availableTasks[x];
-    if self.skillsToTrain[SKILL_MINING] and (availableTasks[x].skill = SKILL_MINING) then
-      self.tasks := self.tasks + availableTasks[x];
-    if self.skillsToTrain[SKILL_SMITHING] and (availableTasks[x].skill = SKILL_SMITHING) then
-      self.tasks := self.tasks + availableTasks[x];
-    if self.skillsToTrain[SKILL_DIVINATION] and (availableTasks[x].skill = SKILL_DIVINATION) then
-      self.tasks := self.tasks + availableTasks[x];
-  end;
   self.minsTilBreak := _minsTilBreak * 60000;
   self.breakFor := _breakFor * 60000;
   self.breakVar := _breakVar * 60000;
