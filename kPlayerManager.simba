@@ -3,22 +3,18 @@ program kPlayerManager;
 //
 //  kPlayerManager.simba
 //  Author: Klamor
-//  Date: 23 January 2018
+//  Date: 27 January 2018
 //
 
 {$include_once SRL-6-SIMBA1.2/SRL.simba}
-{$include_once NAS/NAS.simba}
 {$include_once Klamor/kOnScreenDisplay.simba}
 {$include_once Klamor/kTask.simba}
-{$include_once Klamor/kBiometrics.simba}
+{$include_once Klamor/kExpTracker.simba}
 {$f-}
 
 type
   kPlayerManager = record
-    biometrics      : kBiometrics;
-    totalKills      : Integer;
-    totalEXP        : Integer;
-    totalLoads      : Integer;
+    skillsToTrain   : array[0..(SKILL_COUNT - 1)] of boolean;
     tasks           : array of kTask;
     currentTask     : kTask;
     breakTimer      : TTimeMarker;
@@ -31,29 +27,61 @@ var
   PlayerMgr: kPlayerManager;
 
 procedure kPlayerManager.init(_minsTilBreak, _breakFor, _breakVar: Integer);
+var
+  availableTasks: array of kTask;
+  x: Integer;
 begin
-  self.biometrics.defaultHuman();
-  self.totalKills := 0;
-  self.totalLoads := 0;
-  self.totalEXP := 0;
-  self.tasks := setupTasks();
+  availableTasks := setupTasks();
+  for x := 0 to high(availableTasks) do
+  begin
+    if self.skillsToTrain[SKILL_ATTACK] and (availableTasks[x].skill = SKILL_ATTACK) then
+      self.tasks := self.tasks + availableTasks[x];
+    if self.skillsToTrain[SKILL_WOODCUTTING] and (availableTasks[x].skill = SKILL_WOODCUTTING) then
+      self.tasks := self.tasks + availableTasks[x];
+    if self.skillsToTrain[SKILL_FLETCHING] and (availableTasks[x].skill = SKILL_FLETCHING) then
+      self.tasks := self.tasks + availableTasks[x];
+    if self.skillsToTrain[SKILL_MINING] and (availableTasks[x].skill = SKILL_MINING) then
+      self.tasks := self.tasks + availableTasks[x];
+    if self.skillsToTrain[SKILL_SMITHING] and (availableTasks[x].skill = SKILL_SMITHING) then
+      self.tasks := self.tasks + availableTasks[x];
+    if self.skillsToTrain[SKILL_DIVINATION] and (availableTasks[x].skill = SKILL_DIVINATION) then
+      self.tasks := self.tasks + availableTasks[x];
+  end;
   self.minsTilBreak := _minsTilBreak * 60000;
   self.breakFor := _breakFor * 60000;
   self.breakVar := _breakVar * 60000;
 end;
 
-procedure kPlayerManager.setCurrentTask();      //sets the current task to the lowest player skill level of all tasks
+procedure kPlayerManager.setCurrentLowestTask();      //sets the current task to the lowest player skill level of all tasks
 var
   x: integer;
 begin
   for x := 1 to high(self.tasks) do
     if self.tasks[x].getLevel() < self.tasks[x-1].getLevel() then
       self.currentTask := self.tasks[x];
+  SPS.setup(self.currentTask.area.mapName, RUNESCAPE_SURFACE);
+end;
+
+procedure kPlayerManager.setCurrentHighestTask();      //sets the current task to the highest player skill level of all tasks
+var
+  x: integer;
+begin
+  for x := 1 to high(self.tasks) do
+    if self.tasks[x].getLevel() > self.tasks[x-1].getLevel() then
+      self.currentTask := self.tasks[x];
+  SPS.setup(self.currentTask.area.mapName, RUNESCAPE_SURFACE);
+end;
+
+procedure kPlayerManager.setCurrentRandomTask();             //sets the current task to a random task of all available tasks
+begin
+  self.currentTask := self.tasks[random(length(self.tasks))];
+  SPS.setup(self.currentTask.area.mapName, RUNESCAPE_SURFACE);
 end;
 
 procedure kPlayerManager.changeTask(task: kTask);        //override current task with a specific task
 begin
   self.currentTask := task;
+  SPS.setup(self.currentTask.area.mapName, RUNESCAPE_SURFACE);
 end;
 
 function kPlayerManager.tilBreak(): Integer;
@@ -61,34 +89,13 @@ begin
   result := (self.minsTilBreak - players[currentPlayer].worked.getTime());
 end;
 
-procedure updateProgress();
-begin
-  OSD.progress.update([msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV),
-                      toStr(PlayerMgr.totalEXP),
-                      toStr(round((PlayerMgr.totalEXP * 60) / (players[currentPlayer].worked.getTime() / 60000))),
-                      msToTime(PlayerMgr.tilBreak, TIME_ABBREV)]);
-  OSD.refresh();
-end;
 
-procedure printProgress();
-begin
-  clearDebug();
-  writeLn('|=========================================|');
-  writeLn(PadR('|        Klamors AIO v' + toStr(1.0), 42) + '|');
-  writeLn(PadR('| Worked: ' + msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV), 42) + '|');
-  writeLn(PadR('| Kills: ' + toStr(PlayerMgr.totalKills), 42) + '|');
-  writeLn(PadR('| Kills/HR: ' + toStr(round((PlayerMgr.totalKills * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
-  writeLn(PadR('| Loads: ' + toStr(PlayerMgr.totalLoads), 42) + '|');
-  writeLn(PadR('| Loads/HR: ' + toStr(round((PlayerMgr.totalLoads * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
-  writeLn(PadR('| EXP: ' + toStr(PlayerMgr.totalEXP), 42) + '|');
-  writeLn(PadR('| EXP/HR: ' + toStr(round((PlayerMgr.totalEXP * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
-  writeLn('|=========================================|');
-end;
 
-procedure takeBreak();     //borrowed from The Mayor's Resource Dungeon Miner
+function takeBreak(): boolean;     //borrowed from The Mayor's Resource Dungeon Miner
 var
   time: Integer;
 begin
+  result := false;
   if (PlayerMgr.tilBreak() < 0) then
   begin
     time := round(PlayerMgr.breakVar * 0.1); // Add +/- 10% to break time
@@ -100,6 +107,7 @@ begin
       players[currentPlayer].login();
     players[currentPlayer].worked.reset();
     players[currentPlayer].worked.start();
+    exit(true);
   end else
     writeLn('Mins til break: ' + toStr(PlayerMgr.tilBreak()));
 end;
@@ -114,12 +122,15 @@ begin
     exit(false);
   end;
 
-  addOnTerminate('printProgress');
+  OSD.status.update(['Initializing Player Manager...']);
+  OSD.refresh();
+  self.init(60, 17, 7);       //minsTilBreak - 60 mins, breakFor - 17 mins, breakVar- 7 mins
 
-  self.init(60, 17, 7);       //minsTilBreak - 60mins, breakFor - 17mins, breakVar- 7mins
-  self.setCurrentTask();
-  //self.changeTask(task);    //USE THIS FOR DEBUGGING PURPOSES
-  SPS.setup(self.currentTask.area.mapName, RUNESCAPE_SURFACE);
+  OSD.status.update(['Initializing tasks...']);
+  OSD.refresh();
+  self.setCurrentLowestTask();
+  //self.changeTask(task);    //USE THIS FOR TESTING PURPOSES
+
   self.breakTimer.start();
   players[currentPlayer].worked.start();
 
@@ -128,9 +139,6 @@ end;
 
 procedure kPlayerManager.doMain();
 begin
-  OSD.status.update(['Initializing Player Manager...']);
-  OSD.refresh();
-
   if not self.setup() then
   begin
     writeLn('Failed to setup Player Manager!');
@@ -139,9 +147,8 @@ begin
   end;
 
   repeat
-    updateProgress();
+    updateProgress(self.tilBreak());
     takeBreak();
-    PlayerMgr.currentTask.doTask();
+    self.currentTask.doTask();
   until false;
-
 end;

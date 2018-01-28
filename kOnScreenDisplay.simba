@@ -33,9 +33,12 @@ contains the vars for script status overlays
 *)
 type
   progressOverlay = record
-    bmp: Integer;
-    loc: Tpoint;
-    stats: TStringArray;
+    bmp           : Integer;
+    loc           : Tpoint;
+    worked        : String;
+    exp           : String;
+    xph           : String;
+    tilBreak      : String;
   end;
 
 (*
@@ -46,8 +49,8 @@ contains the vars for script status overlays
 *)
 type
   onScreenDisplay = record
-    progress: progressOverlay;
-    status: statusOverlay;
+    progress      : progressOverlay;
+    status        : statusOverlay;
   end;
 
 (*
@@ -141,10 +144,10 @@ begin
     fastReplaceColor(self.bmp, 0, 1);
   self.loc := point(chatbox.x1, chatbox.y1);
   setLength(self.stats, 4);
-  self.stats[0] := toStr(0);
-  self.stats[1] := toStr(0);
-  self.stats[2] := toStr(0);
-  self.stats[3] := 'N/A - Not Implemented';	
+  self.stats[0] := '';
+  self.stats[1] := '';
+  self.stats[2] := '';
+  self.stats[3] := '';
 end;
 
 (*
@@ -157,9 +160,14 @@ progressOverlay.update()
       OSD.progress.update([toStr(minsWorked) + ' mins', toStr(totalEXP), toStr(EXP/hr)]);
 
 *)
-procedure progressOverlay.update(txt: TStringArray);
+procedure progressOverlay.update(ptr: Integer; txt: String);
 begin
-  self.stats := txt;
+  case ptr of
+    1: self.worked := txt;
+    2: self.exp := txt;
+    3: self.xph := txt;
+    4: self.tilBreak := txt;
+  end;
 end;
 
 (*
@@ -230,7 +238,7 @@ Draws a progress report
 *)
 procedure onScreenDisplay.drawProgress();
 var
-  run, exp, xph, break: TPoint;
+  run, xp, xpph, break: TPoint;
 begin
   {$IFDEF NAS_DRAWING}
   NAS.Drawing.drawBitmap(self.progress.bmp, self.progress.loc);
@@ -239,11 +247,11 @@ begin
   exp := point((chatbox.x1 + 65),(chatbox.y1 + 95));
   xph := point((chatbox.x1 + 100),(chatbox.y1 + 125));
   break := point((chatbox.x1 + 125),(chatbox.y1 + 155));
-  self.progress.stats[0] := toStr(msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV));
-  drawString(self.progress.stats[0], run);
-  drawString(self.progress.stats[1], exp);
-  drawString(self.progress.stats[2], xph);
-  drawString(self.progress.stats[3], break);
+  self.progress.worked := toStr(msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV));
+  drawString(self.progress.worked, run);
+  drawString(self.progress.exp, xp);
+  drawString(self.progress.xph, xpph);
+  drawString(self.progress.tilBreak, break);
 end;
 
 (*

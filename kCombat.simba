@@ -24,7 +24,7 @@ A variable through which scripters can access the kMonster info.
 
 *)
 var
-  Chicken, Cow, FleshCrawler, MossGiant, FireGiant: kMonster;
+  naMon, Chicken, Cow, FleshCrawler, MossGiant, FireGiant: kMonster;
 
 (*
 init
@@ -70,7 +70,8 @@ Example:
 *)
 
 procedure initMons();
-begin       {_constXP, _cmbtXP: extended; _settings: kGameObject}
+begin       {_constXP, _cmbtXP: extended; _name: String;}
+  naMon.init(0.0, 0.0, '');
   Chicken.init(8.2, 24.9, 'Chicken');
   Cow.init(8.4, 25.5, 'Cow');
   FleshCrawler.init(42.2, 128.0, 'Flesh-crawler');
@@ -220,14 +221,14 @@ Example:
 
     kCombatMgr.init()
 *)
-procedure kCombatManager.init(_regenHP, _regenAD, _eatPercent, _quitPercent, _maxFight, _maxSearch: Integer; _monster: kMonster);
+procedure kCombatManager.init(_monster: kMonster);       //uses default values until we implement playerforms
 begin
-  self.regenHP := _regenHP;
-  self.regenAD := _regenAD;
-  self.eatPercent := _eatPercent;
-  self.quitPercent := _quitPercent;
-  self.maxFight := _maxFight;
-  self.maxSearch := maxSearch;
+  self.regenHP := 65;
+  self.regenAD := 80;
+  self.eatPercent := 60;
+  self.quitPercent := 25;
+  self.maxFight := 60000;             //60 seconds
+  self.maxSearch := (8 * 60000);        //8 mins
   self.monster := _monster;
   self.npc.init(self.monster.name);
   self.setCombatFlag();

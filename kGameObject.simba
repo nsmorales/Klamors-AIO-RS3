@@ -637,12 +637,6 @@ begin
   repeat
     avg := getPixelShiftAverage(mainscreen.playerBox, 100, 300);
 
-    {$IFDEF NAS_DRAWING}
-      NAS.Drawing.drawBox(mainscreen.playerBox, false, clRed);
-      NAS.Drawing.drawText(self.settings.name + '.doneHarvesting(): ' + intToStr(avg), txtPoint, 'SmallChars07', false, clWhite);
-      NAS.Drawing.clear();
-    {$ENDIF}
-
     if (inRange(avg, 0, 600)) then
     begin
       Inc(done);
@@ -655,11 +649,7 @@ begin
     if (done >= 2) or (tabBackpack.isFull()) then
     begin
       Result := True;
-      {$IFDEF NAS_DRAWING}
-        NAS.Drawing.drawBox(mainscreen.playerBox, false, clRed);
-        NAS.Drawing.drawText(self.settings.name + '.doneHarvesting(): ' + toStr(result), txtPoint, 'SmallChars07', false, clWhite);
-        NAS.Drawing.clear();
-      {$ENDIF}
+      OSD.status.update(['Done Chopping!']);
       Break;
     end;
 
@@ -722,14 +712,29 @@ begin
 
 end;
 
+(*
+kWisp.train()
+----------------
+
+    procedure kWisp.train();
+
+Trains divination through the kTask variable.
+
+.. note::
+
+    - by Klamor
+    - Last Updated: 24 January 2018
+
+Example:
+
+
+
+*)
+
 begin
   //initTrees();
   //initOres();
   //initWisps();
-  clearDebug();
-  writeLn('SOP II: ' + toStr((35 * getPrice('Bright_energy')) + (getPrice('Sapphire_necklace'))));
-  writeLn('');
-  writeLn('Green Dragongide: ' + toStr(getPrice('Green_dragonhide')*10));
-  writeLn('Blue Dragongide: ' + toStr(getPrice('Blue_dragonhide')*10));
+
 
 end;

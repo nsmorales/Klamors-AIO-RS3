@@ -1,0 +1,68 @@
+program kNXT;
+
+{$DEFINE NAS_DRAWING}
+{$include_once NAS/NAS.simba}
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once Klamor/kPlayerManager.simba}
+{$f-}
+
+/////////////////////////////////////////////////////
+//                  PLAYER SETUP
+/////////////////////////////////////////////////////
+const
+  //SKILLS TO TRAIN TRUE/FALSE
+  TRAIN_ATTACK = true;
+  TRAIN_MAGIC = true;
+  TRAIN_WOODCUTTING = true;
+  TRAIN_FLETCHING = true;
+  TRAIN_MINING = true;
+  TRAIN_SMITHING = true;
+  TRAIN_DIVINATION = true;
+
+procedure declarePlayers();
+begin
+  setLength(players, 1);
+  with players[0] do
+  begin
+    loginName := '';
+    password := '';
+    isActive := true;
+    isMember := false;
+    world := 0;
+  end
+  currentPlayer := 0;
+end;
+
+/////////////////////////////////////////////////////
+//                  PLAYER SETUP
+/////////////////////////////////////////////////////
+
+procedure declareSkills();
+begin
+  PlayerMgr.skillsToTrain[SKILL_ATTACK] := TRAIN_ATTACK;
+  PlayerMgr.skillsToTrain[SKILL_MAGIC] := TRAIN_MAGIC;
+  PlayerMgr.skillsToTrain[SKILL_WOODCUTTING] := TRAIN_WOODCUTTING;
+  PlayerMgr.skillsToTrain[SKILL_FLETCHING] := TRAIN_FLETCHING;
+  PlayerMgr.skillsToTrain[SKILL_MINING] := TRAIN_MINING;
+  PlayerMgr.skillsToTrain[SKILL_SMITHING] := TRAIN_SMITHING;
+  PlayerMgr.skillsToTrain[SKILL_DIVINATION] := TRAIN_DIVINATION;
+end;
+
+begin
+  ClearDebug();
+  NAS.EnableDebug(false);
+  disableSRLdebug = true;
+
+  declarePlayers();
+  declareSkills();
+
+  if(NAS.init()) then
+  begin
+    NAS.Layer.PaintInterval(100);
+    PlayerMgr.doMain();
+  end else
+  begin
+    writeLn('Couldnt locate Runescape 3 Game Screen!');
+    terminateScript();
+  end;
+end.

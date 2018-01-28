@@ -73,3 +73,11 @@ begin
   until (not progressScreen.isOpen()) or progressScreen.findButton(PROGRESS_BUTTON_DONE, 500, False)
 end;
 
+function randomPoint(area: TPointArray): TPoint;        //returns a gausspoint from area: TPointArray
+var
+  box: TBox;
+begin
+  box := area.getBounds();
+  result := box.getGaussPoint();
+end;
+

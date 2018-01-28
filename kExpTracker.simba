@@ -1,0 +1,60 @@
+//
+//  kEXP.simba
+//  Author: Klamor
+//  Date: 27 January 2018
+//
+
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once NAS/NAS.simba}
+{$include_once Klamor/kOnScreenDisplay.simba}
+{$f-}
+
+type
+  expTracker = record
+    totalEXP      : integer;
+    totalLoads    : integer;
+    totalKills    : integer;
+    //skillEXP      : array [SKILL_COUNT] of integer;   //array of individual skill EXP     //removed until we figure out the best way to implement
+  end;
+
+var
+  tracker: expTracker;
+
+procedure expTracker.update(tEXP, tLoads, tKills: integer {exp: array [SKILL_COUNT] of integer});
+var
+  x: integer;
+begin
+  self.totalEXP := self.totalEXP + tEXP;
+  self.totalLoads := self.totalLoads + tLoads;
+  self.totalKills := self.totalKills + tKills;
+  //for x := 0 to high(self.skillEXP) do
+    //self.skillEXP[x] := self.skillEXP[x] + exp[x];
+end;
+
+procedure updateProgress(tilbreak: integer);
+begin
+  OSD.progress.update(1, msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV),
+  OSD.progress.update(2, toStr(self.totalEXP),
+  OSD.progress.update(3, toStr(round((self.totalEXP * 60) / (worked / 60000))),
+  OSD.progress.update(4, msToTime(tilBreak, TIME_ABBREV));
+  OSD.refresh();
+end;
+
+procedure printProgress();
+begin
+  clearDebug();
+  writeLn('|=========================================|');
+  writeLn(PadR('|        Klamors AIO v' + toStr(1.0), 42) + '|');
+  writeLn(PadR('| Worked: ' + msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV), 42) + '|');
+  writeLn(PadR('| Kills: ' + toStr(tracker.totalKills), 42) + '|');
+  writeLn(PadR('| Kills/HR: ' + toStr(round((tracker.totalKills * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
+  writeLn(PadR('| Loads: ' + toStr(tracker.totalLoads), 42) + '|');
+  writeLn(PadR('| Loads/HR: ' + toStr(round((tracker.totalLoads * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
+  writeLn(PadR('| EXP: ' + toStr(tracker.totalEXP), 42) + '|');
+  writeLn(PadR('| EXP/HR: ' + toStr(round((tracker.totalEXP * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
+  writeLn('|=========================================|');
+end;
+
+begin
+  addOnTerminate('printProgress');
+end;

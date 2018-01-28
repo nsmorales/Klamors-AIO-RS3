@@ -5,6 +5,7 @@
 {$Include_once Klamor/kGameObject.simba}
 {$include_once Klamor/kCombat.simba}
 {$include_once Klamor/kMisc.simba}
+{$include_once Klamor/kExpTracker.simba}
 {$f-}
 
 type
@@ -29,6 +30,7 @@ type
     monster     : kMonster;
     tree        : kTree;
     ore         : kOre;
+    wisp        : kWisp;
     bank        : kBank;
   end;
 
@@ -36,13 +38,15 @@ type
 //    Defined Task Areas
 //
 var
-  GE: kTaskArea;
+  GE, VarrockCourtyard, DraynorVillage, LumbridgeForrest, LumbridgeChickens, LumbridgeCows, LumbridgeGoblins,
+  EdgevilleDungeonHillGiants, ChaosTunnelsMossGiants, ChaosTunnelsFireGiants: kTaskArea;
 
 //
 //    Defined Tasks
 //
 var
-  fletchNstring, superHeat, highAlch: kTask;
+  fletchNstring, superHeat, highAlch, treeCutArrows, oakCutArrows, willowCutArrows, yewCutArrows,
+  fightChickens, fightCows, fightGoblins, fightHillGiants, fightMossGiants, fightFireGiants: kTask;
 
 procedure kTaskArea.init(_mapName: String; _bankLoc, _gatherLoc: TPointArray; _objectLoc: T2DPointArray;
                          _toBank, _toGather: TPointArray; _toObject: T2DPointArray; _lodestone: String);
@@ -60,11 +64,29 @@ end;
 procedure setupTaskAreas();
 begin
   GE.init('Grand_Exchange', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
-                     [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Varrock');
+         [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Varrock');
+  VarrockCourtyard.init('Varrock_Courtyard', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
+                       [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Varrock');
+  DraynorVillage.init('Draynor_Village', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
+                     [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Draynor');
+  LumbridgeForrest.init('Lumbridge_Forrest', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
+                       [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
+  LumbridgeChickens.init('Lumbridge_Chickens', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
+                        [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
+  LumbridgeCows.init('Lumbridge_Cows', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
+                    [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
+  LumbridgeGoblins.init('Lumbridge_Goblins', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
+                       [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
+  EdgevilleDungeonHillGiants.init('Edgeville_Dungeon_Hill_Giants', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
+                                 [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
+  ChaosTunnelsMossGiants.init('Chaos_Tunnels_Moss_Giants', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
+                             [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
+  ChaosTunnelsFireGiants.init('Chaos_Tunnels_Fire_Giants', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
+                             [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
 end;
 
 procedure kTask.init(_name: String; _area: kTaskArea; _skill, _minLevel, _maxLevel: Integer;
-                     _monster: kMonster; _tree: kTree; _ore: kOre; _bank: kBank);
+                     _monster: kMonster; _tree: kTree; _ore: kOre; _wisp: kWisp; _bank: kBank);
 begin
   self.name := _name;
   self.area := _area;
@@ -74,14 +96,25 @@ begin
   self.monster := _monster;
   self.tree := _tree;
   self.ore := _ore;
+  self.wisp := _wisp;
   self.bank := _bank;
 end;
 
 procedure initTasks()
 begin
-  fletchNstring.init('Fletch & String', GE, SKILL_FLETCHING, 1, 99, [], [], [], Gray);
-  superHeat.init('Super Heat', GE, SKILL_MAGIC, 43, 99, [], [], [], Gray);
-  highAlch.init('High Alch', GE, SKILL_MAGIC, 55, 99, [], [], [], Gray);
+  fletchNstring.init('Fletch & String', GE, SKILL_FLETCHING, 1, 99, [], [], [], [], Gray);
+  superHeat.init('Super Heat', GE, SKILL_MAGIC, 43, 99, [], [], [], [], []);
+  highAlch.init('High Alch', GE, SKILL_MAGIC, 55, 99, [], [], [], [], []);
+  treeCutArrows.init('Tree Cut Arrows', GE, SKILL_WOODCUTTING, 1, 20, [], Tree, [], [], []);
+  oakCutArrows.init('Oak Cut Arrows', VarrockCourtyard, SKILL_WOODCUTTING, 20, 40, [], Oak, [], [], []);
+  willowCutArrows.init('Willow Cut Arrows', DraynorVillage, SKILL_WOODCUTTING, 40, 60, [], Willow, [], [], []);
+  yewCutArrows.init('Yew Cut Arrows', LumbridgeForrest, SKILL_WOODCUTTING, 60, 99, [], Yew, [], [], []);
+  fightChickens.init('Fight Chickens', LumbridgeChickens, SKILL_ATTACK, 1, 30, Chicken, [], [], [], []);
+  fightCows.init('Fight Cows', LumbridgeCows, SKILL_ATTACK, 1, 30, Cow, [], [], [], []);
+  fightGoblins.init('Fight Goblins', LumbridgeGoblins, SKILL_ATTACK, 1, 30, Goblin, [], [], [], []);
+  fightHillGiants.init('Fight Hill Giants', EdgevilleDungeonHillGiants, SKILL_ATTACK, 40, 50, HillGiant, [], [], [], []);
+  fightMossGiants.init('Fight Moss Giants', ChaosTunnelsMossGiants, SKILL_ATTACK, 50, 70, MossGiant, [], [], [], []);
+  fightFireGiants.init('Fight Fire Giants', ChaosTunnelFireGiants, SKILL_ATTACK, 70, 99, FireGiant, [], [], [], []);
 end;
 
 function kTask.getLevel(): Integer;
@@ -126,19 +159,13 @@ begin
   Result := self.isOnMap();
 end;
 
-procedure kTask.randomLocation()    //moves player to random(high(task.location))
-begin
-
-  //if not self.isOnMap then self.teleTo();
-
-  sps.blindWalk(self.location[random(high(self.location))]);        //walk to a random point on ttask.location array
-end;
-
 function kTask.goToObject(obj: integer): boolean;
 begin
   OSD.status.update(['Walking to Task Location...']);
   OSD.refresh();
-  if SPS.walkPath(self.area.toObject[obj], true) then
+  if not SPS.isInPolygon(self.area.objectLoc[obj]) then
+    SPS.walkPath(self.area.toObject[obj], true);
+  if SPS.walkToPos(randomPoint(self.area.objectLoc[obj], true) then
     exit(true);
 end;
 
@@ -146,7 +173,9 @@ function kTask.goToBank(): boolean;
 begin
   OSD.status.update(['Walking to Bank...']);
   OSD.refresh();
-  if SPS.walkPath(self.area.toBank, true) then
+  if not SPS.isInPolygon(self.area.bankLoc) then
+    SPS.walkPath(self.area.toBank, true);
+  if SPS.walkToPos(randomPoint(self.area.bankLoc, true) then
     exit(true);
 end;
 
@@ -226,51 +255,84 @@ begin
   result := true;
 end;
 
-function kTask.doCombatTask(): boolean;
-begin                                           //NO NAVIGATION SUPPORTED AT THIS TIME
-  if not self.isOnMap() then exit(false);
+function kTask.doCombatTask(): boolean;                 //NO NAVIGATION SUPPORTED AT THIS TIME
+begin
+  OSD.status.update(['Starting Combat Task: ' + self.name]);
+  OSD.refresh();
+
+  if not self.isOnMap() then
+  begin
+    writeLn('Player is not in the correct location to fight!');
+    writeLn('Please navigate your character to the correct area and restart the script.');
+    writeLn('Shutting Down...');
+    terminateScript();
+  end;
+
+  if self.monster.name <> '' then
+    kCombatMgr.init(self.monster)
+  else
+  begin
+    writeLn('Attempted to do a combat task without a monster!');
+    writeLn('Please report this issue to the script dev!');
+    writeLn('Terminating....');
+    terminateScript();
+  end;
   if kCombatMgr.healthCheck() then
-    if kCombatMgr.fight() then
+    if kCombatMgr.fight() then              //only fight once
+    begin
+      tracker.update(self.monster.cmbtXP + self.monster.constXP, 0, 1);
       exit(true);
+    end;
 end;
 
-procedure kTask.doGatheringTask();
+function kTask.doGatheringTask(): boolean;
 var
-  count: integer;
-  failTimer: TTimeMarker;
-
+  num: integer;
 begin
-  writeLn('Starting Gathering Task: ', self.gameObject.name);
-  if not self.isOnMap() then exit;
+  OSD.status.update(['Starting Gathering Task: ' + self.name]);
+  OSD.refresh();
+
   if not SPS.isInPolygon(self.area.gatherLoc) then
-    SPS.walkPath(self.area.toGather, true);
-  repeat
-    count := tabBackpack.count();
-    failTimer.reset();
-    failTimer.start();
-    if self.gameObject.find(false) then
-      repeat
-        if tabBackpack.isFull() then exit;
-        case random(100) of
-          0..84: sleepAndMoveMouse(randomRange(250,550));
-          85: begin
-                    tabStats.open();
-                    mouseBox(tabStats.getSkillBox(self.skill), MOUSE_MOVE);
-                    wait(randomRange(1000,1500));
-                    tabBackpack.open();
-                  end;
-          86..99: begin
-                    self.gameObject.find(true);
-                    smallRandomMouse();
-                  end;
-        end;
-      until (tabBackpack.count() > count) or (failTimer.getTime() > 30000);
-  until tabBackpack.isFull();
-  failTimer.reset();
+  begin
+    if not SPS.walkPath(self.area.toGather, true) then
+      begin
+        writeLn('Unable to navigate specified path!');
+        writeLn('Shutting Down...');
+        terminateScript();
+      end;
+    if not SPS.walkToPos(randomPoint(self.area.gatherLoc), true) then
+      begin
+       writeLn('Unable to navigate to gather location!');
+       writeLn('Shutting Down...');
+       terminateScript();
+     end;
+  end;
+
+  if not self.isReady() then
+    exit(false);
+
+  case self.skill of
+    SKILL_WOODCUTTING:
+    begin
+      num := self.tree.cut();
+      tracker.update((num * self.tree.settings.XP), 1, 0);
+      exit(true);
+    end;
+  end;
+
+  begin
+    writeLn('Attempted to do a Gather Task without useable objects!');
+    writeLn('Please report this issue to the script dev!');
+    writeLn('Terminating....');
+    terminateScript();
+  end;
+
+
 end;
 
 procedure kTask.doTask();
 begin
+  if not isLoggedIn() then exit;
 
 end;
 
@@ -280,6 +342,45 @@ var
 begin
   //if kTask.levelCheck() then
     //tasks := (tasks + kTask);
+
+  if fletchNString.levelCheck() then
+    tasks := tasks + fletchNString;
+
+  if superHeat.levelCheck() then
+    tasks := tasks + superHeat;
+
+  if highAlch.levelCheck() then
+    tasks := tasks + highAlch;
+
+  if treeCutArrows.levelCheck() then
+    tasks := tasks + treeCutArrows;
+
+  if oakCutArrows.levelCheck() then
+    tasks := tasks + oakCutArrows;
+
+  if willowCutArrows.levelCheck() then
+    tasks := tasks + willowCutArrows;
+
+  if yewCutArrows.levelCheck() then
+    tasks := tasks + yewCutArrows;
+
+  if fightChickens.levelCheck() then
+    tasks := tasks + fightChickens;
+
+  if fightCows.levelCheck() then
+    tasks := tasks + fightCows;
+
+  if fightGoblins.levelCheck() then
+    tasks := tasks + fightGoblins;
+
+  if fightHillGiants.levelCheck() then
+    tasks := tasks + fightHillGiants;
+
+  if fightMossGiants.levelCheck() then
+    tasks := tasks + fightMossGiants;
+
+  if fightFireGiants.levelCheck() then
+    tasks := tasks + fightFireGiants;
 
 
   if length(tasks) < 0 then
