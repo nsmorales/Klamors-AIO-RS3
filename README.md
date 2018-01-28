@@ -1,4 +1,4 @@
-# Klamor-s-AIO-RS3
+# Klamors-AIO-RS3
 
 Installation:
 
