@@ -12,3 +12,5 @@ Operation:
   click run  
   ...  
   profit!
+  
+  notes: should add auto-install/updater eventually
