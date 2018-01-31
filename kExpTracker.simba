@@ -18,7 +18,7 @@ type
   end;
 
 var
-  tracker: expTracker;
+  kTracker: expTracker;
 
 procedure expTracker.update(tEXP, tLoads, tKills: integer {exp: array [SKILL_COUNT] of integer});
 var
@@ -33,9 +33,9 @@ end;
 
 procedure updateProgress(tilbreak: integer);
 begin
-  OSD.progress.update(1, msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV),
-  OSD.progress.update(2, toStr(self.totalEXP),
-  OSD.progress.update(3, toStr(round((self.totalEXP * 60) / (worked / 60000))),
+  OSD.progress.update(1, msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV));
+  OSD.progress.update(2, toStr(kTracker.totalEXP));
+  OSD.progress.update(3, toStr(round((kTracker.totalEXP * 60) / (players[currentPlayer].worked.getTime() / 60000))));
   OSD.progress.update(4, msToTime(tilBreak, TIME_ABBREV));
   OSD.refresh();
 end;
@@ -46,15 +46,15 @@ begin
   writeLn('|=========================================|');
   writeLn(PadR('|        Klamors AIO v' + toStr(1.0), 42) + '|');
   writeLn(PadR('| Worked: ' + msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV), 42) + '|');
-  writeLn(PadR('| Kills: ' + toStr(tracker.totalKills), 42) + '|');
-  writeLn(PadR('| Kills/HR: ' + toStr(round((tracker.totalKills * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
-  writeLn(PadR('| Loads: ' + toStr(tracker.totalLoads), 42) + '|');
-  writeLn(PadR('| Loads/HR: ' + toStr(round((tracker.totalLoads * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
-  writeLn(PadR('| EXP: ' + toStr(tracker.totalEXP), 42) + '|');
-  writeLn(PadR('| EXP/HR: ' + toStr(round((tracker.totalEXP * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
+  writeLn(PadR('| Kills: ' + toStr(kTracker.totalKills), 42) + '|');
+  writeLn(PadR('| Kills/HR: ' + toStr(round((kTracker.totalKills * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
+  writeLn(PadR('| Loads: ' + toStr(kTracker.totalLoads), 42) + '|');
+  writeLn(PadR('| Loads/HR: ' + toStr(round((kTracker.totalLoads * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
+  writeLn(PadR('| EXP: ' + toStr(kTracker.totalEXP), 42) + '|');
+  writeLn(PadR('| EXP/HR: ' + toStr(round((kTracker.totalEXP * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
   writeLn('|=========================================|');
 end;
 
 begin
-  addOnTerminate('printProgress');
+  //addOnTerminate('printProgress');
 end;

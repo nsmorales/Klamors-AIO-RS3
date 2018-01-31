@@ -63,14 +63,18 @@ begin
     0..8: productionScreen.clickStart(true);     //90% of the time use spacebar
     9: productionScreen.clickStart(false);
   end;
+  wait(600 + random(600 + random(600)));
 end;
 
-procedure waitforItems()
+procedure waitforItems(skill: integer)
 begin
-  repeat
+  while progressScreen.isOpen() do
+  begin
+    if progressScreen.findButton(PROGRESS_BUTTON_DONE, 500, False) then
+      exit;
     wait(randomRange(350,850));
-    if random(28) = 0 then makeItemsAntiBan();
-  until (not progressScreen.isOpen()) or progressScreen.findButton(PROGRESS_BUTTON_DONE, 500, False)
+    if random(28) = 0 then makeItemsAntiBan(skill);
+  end;
 end;
 
 function randomPoint(area: TPointArray): TPoint;        //returns a gausspoint from area: TPointArray
@@ -81,3 +85,56 @@ begin
   result := box.getGaussPoint();
 end;
 
+procedure actionBarNumber(skill: integer);    //activates ability skill via sendkeys
+begin
+  sendKeys(toStr(skill), 15+randomRange(50,100), 20+randomRange(25,125));
+  wait(250 + random(500));
+end;
+
+procedure actionBarChar(skill: string);    //activates ability skill via sendkeys
+begin
+  sendKeys(skill, 15+randomRange(50,100), 20+randomRange(25,125));
+  wait(250 + random(500));
+end;
+
+function cutArrowShafts(key: string): boolean;
+var
+  failTimer: TTimeMarker;
+begin
+  if not tabBackpack.isFull() then exit(false);
+
+  failTimer.reset();
+  failTimer.start();
+
+  repeat
+    if productionScreen.isOpen() or toolScreen.isOpen() then break;
+    if failTimer.getTime() > 15000 then
+    begin
+      writeLn('Something went wrong...');
+      writeLn('Production/Tool Screen isnt open!');
+      writeLn('Terminating Script...');
+      terminateScript();
+    end;
+    actionBarChar(key);
+    wait(randomRange(250,500));
+  until productionScreen.isOpen() or toolScreen.isOpen();
+
+  failTimer.reset();
+
+  if toolScreen.isOpen() then toolScreen.select('Knife');
+
+  wait((600 + random(600)) + random(600));
+
+  if not productionscreen.selectBox(1) then
+  begin
+    writeln('Fletch Type is invalid!');
+    writeLn('Terminating Script...');
+    terminateScript();
+  end;
+
+  makeItems();
+  waitforItems(SKILL_FLETCHING);
+
+  if tabBackpack.count() < 3 then
+    result := true;
+end;

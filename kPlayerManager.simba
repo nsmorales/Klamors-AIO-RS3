@@ -1,5 +1,3 @@
-program kPlayerManager;
-
 //
 //  kPlayerManager.simba
 //  Author: Klamor
@@ -103,12 +101,14 @@ end;
 function kPlayerManager.setup(): boolean;
 begin
   if not isLoggedIn() then
-    players[currentPlayer].login()
-  else
-  begin
-    writeLn('Not Logged In!');
-    exit(false);
-  end;
+    if not players[currentPlayer].login() then
+    begin
+      writeLn('Not Logged In!');
+      exit(false);
+    end;
+
+  setupTaskAreas();
+  initTasks();
 
   OSD.status.update(['Initializing Player Manager...']);
   OSD.refresh();
@@ -116,10 +116,12 @@ begin
 
   OSD.status.update(['Initializing tasks...']);
   OSD.refresh();
-  self.setCurrentLowestTask();
+
+  //self.setCurrentLowestTask();
   //self.changeTask(task);    //USE THIS FOR TESTING PURPOSES
 
   self.breakTimer.start();
+  players[currentPlayer].worked.reset();
   players[currentPlayer].worked.start();
 
   result := true;
@@ -127,6 +129,8 @@ end;
 
 procedure kPlayerManager.doMain();
 begin
+  writeLn('Setting up Player Manager');
+
   if not self.setup() then
   begin
     writeLn('Failed to setup Player Manager!');
@@ -134,9 +138,11 @@ begin
     terminateScript();
   end;
 
+  self.changeTask(willowCutArrows);
+
   repeat
-    updateProgress(self.tilBreak());
-    takeBreak();
+    //takeBreak();
     self.currentTask.doTask();
+    //updateProgress(self.tilBreak());
   until false;
 end;

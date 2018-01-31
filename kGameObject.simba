@@ -244,20 +244,13 @@ begin
   OSD.status.update(['Finding: ' + self.settings.name]);
   OSD.refresh();
   setLength(TPAs, 3);
-  searchBox := [mainScreen.playerBox.X1 - 600, mainScreen.playerBox.Y1 - 400, mainScreen.playerBox.X2 + 600, mainScreen.playerBox.Y2 + 400];
 
   failTimer.reset();
   failTimer.start();
 
-  {$IFDEF NAS_DRAWING}
-    NAS.Drawing.Drawbox(searchbox, false, clBlue);
-    wait(100);
-    OSD.refresh();
-  {$ENDIF}
-
-  self.tree_col.gatherIn(TPAs[0], searchBox);
-  self.bottom_col.gatherIn(TPAs[1], searchBox);
-  self.cut_col.gatherIn(TPAs[2], searchBox);
+  self.tree_col.gatherIn(TPAs[0], mainScreen.getBounds());
+  self.bottom_col.gatherIn(TPAs[1], mainScreen.getBounds());
+  self.cut_col.gatherIn(TPAs[2], mainScreen.getBounds());
 
   treeATPA := TPAs[0].toATPA(25, 25);
 
@@ -331,35 +324,41 @@ function kTree.chopDone(): boolean;
 var
   timeout: TTimeMarker;
   avg, max, done: Integer;
-  txtPoint: TPoint;
+  box: TBox;
 begin
   if not isLoggedIn() then
     exit;
 
   max := (30000 + randomRange(-10000, 10000));
-
-  txtPoint := point(mainScreen.playerPoint.X - 50, mainScreen.playerPoint.Y + 50);
-
+  box := mainScreen.playerBox;
+  box.expand(50);
   done := 0;
 
   timeout.reset();
   timeout.start();
 
   repeat
-    avg := getPixelShiftAverage(mainscreen.playerBox, 100, 300);
+    avg := getPixelShiftAverage(box, 100, 300);
 
-    if (inRange(avg, 0, 500)) then
+    if (inRange(avg, 0, 300)) then
     begin
       Inc(done);
-
       if (done = 1) then
         Continue;
+    end else
+    if (avg > 1700) then
+    begin
+      OSD.status.update(['AVG: ' + toStr(avg) + ' TREE DOWN!']);
+      OSD.refresh();
+      exit(true);
     end else
       done := 0;
 
     if (done >= 2) or (tabBackpack.isFull()) then
     begin
       Result := True;
+      OSD.status.update(['AVG: ' + toStr(avg) + ' IDLE EXIT']);
+      OSD.refresh();
       Break;
     end;
 
@@ -731,10 +730,12 @@ Example:
 
 *)
 
+function kBank.find():boolean ;
 begin
-  //initTrees();
+end;
+
+begin
+  initTrees();
   //initOres();
   //initWisps();
-
-
 end;

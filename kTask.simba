@@ -63,12 +63,30 @@ end;
 
 procedure setupTaskAreas();
 begin
-  GE.init('Grand_Exchange', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
-         [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Varrock');
-  VarrockCourtyard.init('Varrock_Courtyard', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
-                       [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Varrock');
-  DraynorVillage.init('Draynor_Village', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
-                     [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Draynor');
+  GE.init('Grand_Exchange',
+         [(*bankLoc*)],
+         [(*gatherLoc*)],
+         [[(*objectLoc*)], [(*objectLoc*)]],
+         [(*toBank*)],
+         [(*toGather*)],
+         [[(*toObject*)],[(*toObject*)]],
+         'Varrock');
+  VarrockCourtyard.init('Varrock_Courtyard',
+                       [(*bankLoc*)],
+                       [(*gatherLoc*)],
+                       [[(*objectLoc*)], [(*objectLoc*)]],
+                       [(*toBank*)],
+                       [(*toGather*)],
+                       [[(*toObject*)],[(*toObject*)]],
+                       'Varrock');
+  DraynorVillage.init('Draynor_Village',
+                     [(*bankLoc*)[247, 147], [226, 150], [226, 171], [245, 174]],
+                     [(*gatherLoc*)[177, 169], [239, 183], [229, 246], [181, 222]],
+                     [[(*objectLoc*)], [(*objectLoc*)]],
+                     [(*toBank*)],
+                     [(*toGather*)],
+                     [[(*toObject*)],[(*toObject*)]],
+                     'Draynor');
   LumbridgeForrest.init('Lumbridge_Forrest', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
                        [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
   LumbridgeChickens.init('Lumbridge_Chickens', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
@@ -107,14 +125,14 @@ begin
   highAlch.init('High Alch', GE, SKILL_MAGIC, 55, 99, [], [], [], [], []);
   treeCutArrows.init('Tree Cut Arrows', GE, SKILL_WOODCUTTING, 1, 20, [], Tree, [], [], []);
   oakCutArrows.init('Oak Cut Arrows', VarrockCourtyard, SKILL_WOODCUTTING, 20, 40, [], Oak, [], [], []);
-  willowCutArrows.init('Willow Cut Arrows', DraynorVillage, SKILL_WOODCUTTING, 40, 60, [], Willow, [], [], []);
+  willowCutArrows.init('Willow Cut Arrows', DraynorVillage, SKILL_WOODCUTTING, 40, 99, [], Willow, [], [], []);
   yewCutArrows.init('Yew Cut Arrows', LumbridgeForrest, SKILL_WOODCUTTING, 60, 99, [], Yew, [], [], []);
   fightChickens.init('Fight Chickens', LumbridgeChickens, SKILL_ATTACK, 1, 30, Chicken, [], [], [], []);
   fightCows.init('Fight Cows', LumbridgeCows, SKILL_ATTACK, 1, 30, Cow, [], [], [], []);
   fightGoblins.init('Fight Goblins', LumbridgeGoblins, SKILL_ATTACK, 1, 30, Goblin, [], [], [], []);
   fightHillGiants.init('Fight Hill Giants', EdgevilleDungeonHillGiants, SKILL_ATTACK, 40, 50, HillGiant, [], [], [], []);
   fightMossGiants.init('Fight Moss Giants', ChaosTunnelsMossGiants, SKILL_ATTACK, 50, 70, MossGiant, [], [], [], []);
-  fightFireGiants.init('Fight Fire Giants', ChaosTunnelFireGiants, SKILL_ATTACK, 70, 99, FireGiant, [], [], [], []);
+  fightFireGiants.init('Fight Fire Giants', ChaosTunnelsFireGiants, SKILL_ATTACK, 70, 99, FireGiant, [], [], [], []);
 end;
 
 function kTask.getLevel(): Integer;
@@ -143,7 +161,7 @@ end;
 
 function kTask.teleTo(): Boolean;        //returns true if we successfully teleported to the task area
 begin
-  case self.lode of
+  case self.area.lodestone of
     'Lumbridge': lodestoneScreen.teleportTo(LOCATION_LUMBRIDGE);
     'Varrock': lodestoneScreen.teleportTo(LOCATION_VARROCK);
     'Edgeville': lodestoneScreen.teleportTo(LOCATION_EDGEVILLE);
@@ -165,7 +183,7 @@ begin
   OSD.refresh();
   if not SPS.isInPolygon(self.area.objectLoc[obj]) then
     SPS.walkPath(self.area.toObject[obj], true);
-  if SPS.walkToPos(randomPoint(self.area.objectLoc[obj], true) then
+  if SPS.walkToPos(randomPoint(self.area.objectLoc[obj]), true) then
     exit(true);
 end;
 
@@ -175,7 +193,7 @@ begin
   OSD.refresh();
   if not SPS.isInPolygon(self.area.bankLoc) then
     SPS.walkPath(self.area.toBank, true);
-  if SPS.walkToPos(randomPoint(self.area.bankLoc, true) then
+  if SPS.walkToPos(randomPoint(self.area.bankLoc), true) then
     exit(true);
 end;
 
@@ -280,7 +298,7 @@ begin
   if kCombatMgr.healthCheck() then
     if kCombatMgr.fight() then              //only fight once
     begin
-      tracker.update(self.monster.cmbtXP + self.monster.constXP, 0, 1);
+      kTracker.update(round(self.monster.cmbtXP) + round(self.monster.constXP), 0, 1);
       exit(true);
     end;
 end;
@@ -315,7 +333,7 @@ begin
     SKILL_WOODCUTTING:
     begin
       num := self.tree.cut();
-      tracker.update((num * self.tree.settings.XP), 1, 0);
+      kTracker.update((num * self.tree.settings.XP), 1, 0);
       exit(true);
     end;
   end;
@@ -330,10 +348,28 @@ begin
 
 end;
 
+procedure dvwca();   //Draynor Village Willow Cut Arrows
+begin
+  if not tabBackpack.isOpen() then
+    tabBackpack.open
+  case tabBackpack.isFull() of
+    false: willowCutArrows.doGatheringTask();
+    true: begin
+      OSD.status.update(['Cutting Arrow Shafts']);
+      OSD.refresh();
+      cutArrowShafts('x');
+    end;
+  end;
+end;
+
 procedure kTask.doTask();
 begin
   if not isLoggedIn() then exit;
-
+  OSD.status.update(['Doing Task: ' + self.name]);
+  OSD.refresh();
+  case self.name of
+    'Willow Cut Arrows': dvwca();
+  end;
 end;
 
 function setupTasks(): array of kTask;

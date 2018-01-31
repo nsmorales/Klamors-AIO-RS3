@@ -143,11 +143,10 @@ begin
   self.bmp := loadBitmap(appPath + 'Includes/Klamor/Progress.png');
     fastReplaceColor(self.bmp, 0, 1);
   self.loc := point(chatbox.x1, chatbox.y1);
-  setLength(self.stats, 4);
-  self.stats[0] := '';
-  self.stats[1] := '';
-  self.stats[2] := '';
-  self.stats[3] := '';
+  self.worked := '';
+  self.exp := '';
+  self.xph := '';
+  self.tilBreak := '';
 end;
 
 (*
@@ -244,8 +243,8 @@ begin
   NAS.Drawing.drawBitmap(self.progress.bmp, self.progress.loc);
   {$ENDIF}
   run := point((chatbox.x1 + 105),(chatbox.y1 + 68));
-  exp := point((chatbox.x1 + 65),(chatbox.y1 + 95));
-  xph := point((chatbox.x1 + 100),(chatbox.y1 + 125));
+  xp := point((chatbox.x1 + 65),(chatbox.y1 + 95));
+  xpph := point((chatbox.x1 + 100),(chatbox.y1 + 125));
   break := point((chatbox.x1 + 125),(chatbox.y1 + 155));
   self.progress.worked := toStr(msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV));
   drawString(self.progress.worked, run);
