@@ -31,6 +31,7 @@ type
     tree        : kTree;
     ore         : kOre;
     wisp        : kWisp;
+    fish        : kFish;
     bank        : kBank;
   end;
 
@@ -39,14 +40,27 @@ type
 //
 var
   GE, VarrockCourtyard, DraynorVillage, LumbridgeForrest, LumbridgeChickens, LumbridgeCows, LumbridgeGoblins,
-  EdgevilleDungeonHillGiants, ChaosTunnelsMossGiants, ChaosTunnelsFireGiants: kTaskArea;
+  EdgevilleDungeonHillGiants, ChaosTunnelsMossGiants, ChaosTunnelsFireGiants, KaramjaFisher, SeersVillage: kTaskArea;
 
 //
 //    Defined Tasks
 //
 var
-  fletchNstring, superHeat, highAlch, treeCutArrows, oakCutArrows, willowCutArrows, yewCutArrows,
-  fightChickens, fightCows, fightGoblins, fightHillGiants, fightMossGiants, fightFireGiants: kTask;
+  //general
+  fletchNstring, superHeat, highAlch,
+  //end general
+
+  //woodcutting
+  treeCutArrows, oakCutArrows, willowCutArrows, mapleCutArrows, yewCutArrows,
+  //end woodcutting
+
+  //combat
+  fightChickens, fightCows, fightGoblins, fightHillGiants, fightMossGiants, fightFireGiants,
+  //end combat
+
+  //fishing
+  fishTuna, fishLobster, iKaramjaFisher: kTask;
+  //endfishing
 
 procedure kTaskArea.init(_mapName: String; _bankLoc, _gatherLoc: TPointArray; _objectLoc: T2DPointArray;
                          _toBank, _toGather: TPointArray; _toObject: T2DPointArray; _lodestone: String);
@@ -87,6 +101,14 @@ begin
                      [(*toGather*)],
                      [[(*toObject*)],[(*toObject*)]],
                      'Draynor');
+  SeersVillage.init('Seers_Village',
+                     [(*bankLoc*)],
+                     [(*gatherLoc*)],
+                     [[(*objectLoc*)], [(*objectLoc*)]],
+                     [(*toBank*)],
+                     [(*toGather*)],
+                     [[(*toObject*)],[(*toObject*)]],
+                     'Seers');
   LumbridgeForrest.init('Lumbridge_Forrest', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
                        [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
   LumbridgeChickens.init('Lumbridge_Chickens', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
@@ -101,10 +123,25 @@ begin
                              [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
   ChaosTunnelsFireGiants.init('Chaos_Tunnels_Fire_Giants', [(*bankLoc*)], [(*gatherLoc*)], [[(*objectLoc*)], [(*objectLoc*)]],
                              [(*toBank*)], [(*toGather*)], [[(*toObject*)],[(*toObject*)]], 'Lumbridge');
+  KaramjaFisher.init('Karamja_Fisher',
+         [[128, 287], [150, 287], [149, 310], [126, 309]],
+         [[423, 151], [421, 169], [444, 169], [445, 150]],
+         [[[282, 214], [282, 256], [302, 259], [301, 215]], [(*objectLoc*)]],
+         [[433, 177], [422, 180], [409, 183], [394, 189], [379, 193], [367, 198],
+           [352, 207], [340, 223], [331, 226], [322, 237], [313, 252],
+           [293, 258], [280, 259], [256, 264], [235, 268], [215, 273], [197, 276],
+           [181, 283], [161, 289], [146, 294]],
+         [[148, 300], [157, 297], [170, 289], [184, 282], [199, 280], [215, 280],
+           [230, 279], [245, 273], [262, 262], [278, 261], [307, 256],
+           [323, 240], [338, 234], [349, 220], [365, 198], [392, 195], [413, 189],
+           [427, 183], [436, 175], [436, 166]],
+         [[(*toObject*)],[(*toObject*)]],
+         'Karamja');
+
 end;
 
 procedure kTask.init(_name: String; _area: kTaskArea; _skill, _minLevel, _maxLevel: Integer;
-                     _monster: kMonster; _tree: kTree; _ore: kOre; _wisp: kWisp; _bank: kBank);
+                     _monster: kMonster; _tree: kTree; _ore: kOre; _wisp: kWisp; _fish: kFish; _bank: kBank);
 begin
   self.name := _name;
   self.area := _area;
@@ -115,24 +152,28 @@ begin
   self.tree := _tree;
   self.ore := _ore;
   self.wisp := _wisp;
+  self.fish := _fish;
   self.bank := _bank;
 end;
 
 procedure initTasks()
 begin
-  fletchNstring.init('Fletch & String', GE, SKILL_FLETCHING, 1, 99, [], [], [], [], Gray);
-  superHeat.init('Super Heat', GE, SKILL_MAGIC, 43, 99, [], [], [], [], []);
-  highAlch.init('High Alch', GE, SKILL_MAGIC, 55, 99, [], [], [], [], []);
-  treeCutArrows.init('Tree Cut Arrows', GE, SKILL_WOODCUTTING, 1, 20, [], Tree, [], [], []);
-  oakCutArrows.init('Oak Cut Arrows', VarrockCourtyard, SKILL_WOODCUTTING, 20, 40, [], Oak, [], [], []);
-  willowCutArrows.init('Willow Cut Arrows', DraynorVillage, SKILL_WOODCUTTING, 40, 99, [], Willow, [], [], []);
-  yewCutArrows.init('Yew Cut Arrows', LumbridgeForrest, SKILL_WOODCUTTING, 60, 99, [], Yew, [], [], []);
-  fightChickens.init('Fight Chickens', LumbridgeChickens, SKILL_ATTACK, 1, 30, Chicken, [], [], [], []);
-  fightCows.init('Fight Cows', LumbridgeCows, SKILL_ATTACK, 1, 30, Cow, [], [], [], []);
-  fightGoblins.init('Fight Goblins', LumbridgeGoblins, SKILL_ATTACK, 1, 30, Goblin, [], [], [], []);
-  fightHillGiants.init('Fight Hill Giants', EdgevilleDungeonHillGiants, SKILL_ATTACK, 40, 50, HillGiant, [], [], [], []);
-  fightMossGiants.init('Fight Moss Giants', ChaosTunnelsMossGiants, SKILL_ATTACK, 50, 70, MossGiant, [], [], [], []);
-  fightFireGiants.init('Fight Fire Giants', ChaosTunnelsFireGiants, SKILL_ATTACK, 70, 99, FireGiant, [], [], [], []);
+  fletchNstring.init('Fletch & String', GE, SKILL_FLETCHING, 1, 99, [], [], [], [], [], Gray);
+  superHeat.init('Super Heat', GE, SKILL_MAGIC, 43, 99, [], [], [], [], [], []);
+  highAlch.init('High Alch', GE, SKILL_MAGIC, 55, 99, [], [], [], [], [], []);
+  treeCutArrows.init('Tree Cut Arrows', GE, SKILL_WOODCUTTING, 1, 20, [], Tree, [], [], [], []);
+  oakCutArrows.init('Oak Cut Arrows', VarrockCourtyard, SKILL_WOODCUTTING, 20, 40, [], Oak, [], [], [], []);
+  willowCutArrows.init('Willow Cut Arrows', DraynorVillage, SKILL_WOODCUTTING, 40, 99, [], Willow, [], [], [], []);
+  mapleCutArrows.init('Maple Cut Arrows', SeersVillage, SKILL_WOODCUTTING, 40, 99, [], Maple, [], [], [], []);
+  yewCutArrows.init('Yew Cut Arrows', LumbridgeForrest, SKILL_WOODCUTTING, 60, 99, [], Yew, [], [], [], []);
+  fightChickens.init('Fight Chickens', LumbridgeChickens, SKILL_ATTACK, 1, 30, Chicken, [], [], [], [], []);
+  fightCows.init('Fight Cows', LumbridgeCows, SKILL_ATTACK, 1, 30, Cow, [], [], [], [], []);
+  fightGoblins.init('Fight Goblins', LumbridgeGoblins, SKILL_ATTACK, 1, 30, Goblin, [], [], [], [], []);
+  fightHillGiants.init('Fight Hill Giants', EdgevilleDungeonHillGiants, SKILL_ATTACK, 40, 50, HillGiant, [], [], [], [], []);
+  fightMossGiants.init('Fight Moss Giants', ChaosTunnelsMossGiants, SKILL_ATTACK, 50, 70, MossGiant, [], [], [], [], []);
+  fightFireGiants.init('Fight Fire Giants', ChaosTunnelsFireGiants, SKILL_ATTACK, 70, 99, FireGiant, [], [], [], [], []);
+  fishTuna.init('Fish Raw Tuna', KaramjaFisher, SKILL_FISHING, 35, 40, [], [], [], [], Tuna, []);
+  fishLobster.init('Fish Raw Lobster', KaramjaFisher, SKILL_FISHING, 40, 99, [], [], [], [], Lobster, Stiles);
 end;
 
 function kTask.getLevel(): Integer;
@@ -179,22 +220,74 @@ end;
 
 function kTask.goToObject(obj: integer): boolean;
 begin
-  OSD.status.update(['Walking to Task Location...']);
+  Result := true;
+  OSD.status.update(['Walking to Object[' + toStr(obj) + '...']);
   OSD.refresh();
   if not SPS.isInPolygon(self.area.objectLoc[obj]) then
-    SPS.walkPath(self.area.toObject[obj], true);
-  if SPS.walkToPos(randomPoint(self.area.objectLoc[obj]), true) then
-    exit(true);
+  begin
+    if not SPS.walkPath(self.area.toObject[obj], true) then
+    begin
+      OSD.status.update(['Failed to walk to Object[' + toStr(obj) + ']!']);
+      OSD.refresh();
+      exit(false);
+    end;
+    (*
+    if not SPS.walkToPos(randomPoint(self.area.objectLoc[obj]), true) then
+    begin
+      OSD.status.update(['Failed to click random Point at Object[' + toStr(obj) + ']!']);
+      OSD.refresh();
+      exit(false);
+    end;
+    *)
+  end;
+end;
+
+function kTask.goToGather(): boolean;
+begin
+  Result := true;
+  OSD.status.update(['Walking to Gather...']);
+  OSD.refresh();
+  if not SPS.isInPolygon(self.area.gatherLoc) then
+  begin
+      if not SPS.walkPath(self.area.toGather, true) then
+      begin
+        OSD.status.update(['Failed to walk to Gather!']);
+        OSD.refresh();
+        exit(false);
+      end;
+      (*
+      if not SPS.walkToPos(randomPoint(self.area.gatherLoc), true) then
+      begin
+        OSD.status.update(['Failed to click Random Point at Gather Loaction!']);
+        OSD.refresh();
+        exit(false);
+      end;
+      *)
+  end;
 end;
 
 function kTask.goToBank(): boolean;
 begin
+  Result := true;
   OSD.status.update(['Walking to Bank...']);
   OSD.refresh();
   if not SPS.isInPolygon(self.area.bankLoc) then
-    SPS.walkPath(self.area.toBank, true);
-  if SPS.walkToPos(randomPoint(self.area.bankLoc), true) then
-    exit(true);
+  begin
+    if not SPS.walkPath(self.area.toBank, true) then
+    begin
+      OSD.status.update(['Failed to walk to Bank!']);
+      OSD.refresh();
+      exit(false);
+    end;
+    (*
+    if not SPS.walkToPos(randomPoint(self.area.bankLoc), true) then
+    begin
+      OSD.status.update(['Failed to click RandomPoint at Bank Location!']);
+      OSD.refresh();
+      exit(false);
+    end;
+    *)
+  end;
 end;
 
 procedure kTask.bank(isPreset, tele: Boolean; preset: Integer)
@@ -303,38 +396,26 @@ begin
     end;
 end;
 
-function kTask.doGatheringTask(): boolean;
-var
-  num: integer;
+procedure kTask.doGatheringTask();
 begin
   OSD.status.update(['Starting Gathering Task: ' + self.name]);
   OSD.refresh();
 
   if not SPS.isInPolygon(self.area.gatherLoc) then
   begin
-    if not SPS.walkPath(self.area.toGather, true) then
-      begin
-        writeLn('Unable to navigate specified path!');
-        writeLn('Shutting Down...');
-        terminateScript();
-      end;
-    if not SPS.walkToPos(randomPoint(self.area.gatherLoc), true) then
-      begin
-       writeLn('Unable to navigate to gather location!');
-       writeLn('Shutting Down...');
-       terminateScript();
-     end;
+    self.goToGather();
   end;
-
-  if not self.isReady() then
-    exit(false);
 
   case self.skill of
     SKILL_WOODCUTTING:
     begin
-      num := self.tree.cut();
-      kTracker.update((num * self.tree.settings.XP), 1, 0);
-      exit(true);
+      kTracker.update((self.tree.cut() * self.tree.settings.XP), 1, 0);
+      exit;
+    end;
+    SKILL_FISHING:
+    begin
+      kTracker.update((self.fish.fish() * self.fish.settings.XP), 1, 0);
+      exit;
     end;
   end;
 
@@ -348,12 +429,10 @@ begin
 
 end;
 
-procedure dvwca();   //Draynor Village Willow Cut Arrows
+procedure kTask.cutAndFletchArrows();
 begin
-  if not tabBackpack.isOpen() then
-    tabBackpack.open
   case tabBackpack.isFull() of
-    false: willowCutArrows.doGatheringTask();
+    false: self.doGatheringTask();
     true: begin
       OSD.status.update(['Cutting Arrow Shafts']);
       OSD.refresh();
@@ -362,13 +441,40 @@ begin
   end;
 end;
 
+procedure kTask.iKaramjaPowerFisher(dropKey: string);
+begin
+  if tabBackpack.isFull() then
+  begin
+      repeat
+        if conversationBox.isOpen(600) then
+          conversationBox.continue(true, false);
+        fastButton('x');
+      until lobstah.count() = 0;
+  end else
+    self.doGatheringTask();
+end;
+
+procedure kTask.iKarmjaFisher();    //+rep KB :D
+begin
+  if tabBackpack.isFull() then
+  repeat
+    self.goToBank();
+    Stiles.find(MOUSE_RIGHT);
+  until tabBackpack.count() < 2
+  else
+    self.doGatheringTask();
+end;
+
 procedure kTask.doTask();
 begin
   if not isLoggedIn() then exit;
   OSD.status.update(['Doing Task: ' + self.name]);
   OSD.refresh();
   case self.name of
-    'Willow Cut Arrows': dvwca();
+    'Willow Cut Arrows': self.cutAndFletchArrows();
+    'Fish Raw Tuna': self.iKaramjaPowerFisher('x');
+    'Fish Raw Lobster': self.iKaramjaPowerFisher('x');
+    'Fight Fire Giants': self.doCombatTask();
   end;
 end;
 

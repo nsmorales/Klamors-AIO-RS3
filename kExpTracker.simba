@@ -20,6 +20,13 @@ type
 var
   kTracker: expTracker;
 
+procedure expTracker.init();
+begin
+  self.totalEXP := 0;
+  self.totalKills := 0;
+  self.totalLoads := 0;
+end;
+
 procedure expTracker.update(tEXP, tLoads, tKills: integer {exp: array [SKILL_COUNT] of integer});
 var
   x: integer;
@@ -56,5 +63,5 @@ begin
 end;
 
 begin
-  //addOnTerminate('printProgress');
+  addOnTerminate('printProgress');
 end;

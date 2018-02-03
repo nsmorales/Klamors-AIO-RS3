@@ -29,10 +29,12 @@ var
   availableTasks: array of kTask;
   x: Integer;
 begin
+  (*
   availableTasks := setupTasks();
-  for x := 0 to high(availableTasks) do
+  for x := 0 to high(availableTasks) do                        //commented for testing
     if self.skillsToTrain[availableTasks[x].skill] then
       self.tasks := self.tasks + availableTasks[x];
+  *)
   self.minsTilBreak := _minsTilBreak * 60000;
   self.breakFor := _breakFor * 60000;
   self.breakVar := _breakVar * 60000;
@@ -109,6 +111,7 @@ begin
 
   setupTaskAreas();
   initTasks();
+  kTracker.init();
 
   OSD.status.update(['Initializing Player Manager...']);
   OSD.refresh();
@@ -138,11 +141,11 @@ begin
     terminateScript();
   end;
 
-  self.changeTask(willowCutArrows);
+  self.changeTask(fishLobster);
 
   repeat
     //takeBreak();
     self.currentTask.doTask();
-    //updateProgress(self.tilBreak());
+    updateProgress(self.tilBreak());
   until false;
 end;
