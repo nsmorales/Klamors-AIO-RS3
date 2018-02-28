@@ -1,0 +1,741 @@
+(*
+kGameObject
+===========
+
+The kGameObject file holds all functions and procedures
+necessary for interacting with RS3 interactable game
+objects. (trees / ores / NPCs / loot / etc.)
+
+*)
+
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once NAS/NAS.simba}
+{$include_once Klamor/kOnScreenDisplay.simba}
+{$include_once Klamor/kMisc.simba}
+{$f-}
+
+type
+  kGameObject = record
+    name          : string;
+    overText      : TStringArray;
+    cO            : string;
+    gePrice       : integer;
+    XP            : integer;
+  end;
+
+type
+  kLoot = record
+    color     : TColorData;
+    invDTM    : Integer;
+    settings  : kGameObject;
+  end;
+
+var
+  dragonBones, lobstah, sopII, blueDragonHide: kLoot;
+
+type
+  kFish = record
+    minWait   : integer;
+    maxWait   : integer;
+    settings  : kGameObject;
+  end;
+
+var
+  //Shrimp, Anchovies, Sardine, Herring, Crayfish, Trout, Salmon, Pike, Rocktail,
+  Lobster, Tuna(*, Swordfish, Monkfish, Shark*): kFish;
+
+type
+  kBank = record
+    color     : TColorData;
+    settings  :kGameObject;
+  end;
+
+var
+  Blue, Gray, Chest, Stiles: kBank;
+
+type
+  kTree = record
+    tree_col: TColorData;           //color of uncut tree
+    bottom_col: TColorData;           //color of bottom edge
+    cut_col: TColorData;            //color of top of trunk after tree is cut
+    settings: kGameObject;          //gameobject settings
+  end;
+
+var
+  Tree, Oak, Willow, Teak, Maple, Mahogany, Yew, Magic, Cursed_Magic, Elder, Crystal: kTree;
+
+type
+  kOre = record
+    rock_col: TColorData;           //col of rocks
+    ore_col: TColorData;            //col of specific ore
+    settings: kGameObject;          //gameobject settings
+  end;
+
+var
+  Copper, Tin, Iron, Silver, Gold, Coal, Mithril, Adamantite, Runite: kOre;
+
+type
+  kWisp = record
+    col: TColorData;
+    settings: kGameObject;
+  end;
+
+var
+  Pale: kWisp;
+
+type
+  kBuff = record
+    DTM : integer;
+  end;
+
+var
+  eqSopII: kBuff;
+
+procedure kBuff.init(_DTM: integer);
+begin
+  self.DTM := _DTM;
+end;
+
+procedure initBuffs();
+begin
+  eqSopII.init(DTMFromString('m6wAAAHic42ZgYDjDxsBwB4qvAvFxID6AhI8C8QUgvgnEO5kheD0Qr4HidUC8HYgPAvEJJFyeqMIQNU2SKCzJQDxgJAEjAQA9AByu'));
+end;
+
+function kBuff.isActive(): boolean;
+begin
+  if tabBackpack.countDTM(self.DTM) > 0 then
+    result := true;
+end;
+//
+//  kTree Methods
+//
+procedure kTree.init(_tree_col, _bottom_col, _cut_col: TColorData; _settings: kGameObject);
+begin
+  self.tree_col := _tree_col;
+  self.bottom_col := _bottom_col;
+  self.cut_col := _cut_col;
+  self.settings := _settings;
+end;
+
+procedure initTrees();
+begin
+  //TREEOBJECT.INIT([TREE_COL], [BOTTOM_COL], [CUT_COL], ['NAME', ['OVER','TEXT'], 'CHOOSEOPTION', price, xp])
+  Tree.init([4821171, 18, [2, [0.07, 0.90, 0.00]]], [3092775, 4, [2, [1.02, 1.21, 0.00]]], [11709110, 8, [2, [1.85, 0.37, 0.00]]], ['Tree', ['Tree'], 'hop down', getPrice('Logs'), 25]);
+  Oak.init([5005148, 12, [2, [0.59, 0.49, 0.00]]], [3555643, 10, [2, [1.17, 0.32, 0.00]]], [12435401, 0, [2, [0.00, 0.00, 0.00]]], ['Oak Tree', ['Oak'], 'hop down', getPrice('Oak_Logs'), round(37.5)]);
+  Willow.init([1057287, 6, [2, [0.32, 5.90, 0.00]]], [1319176, 5, [2, [0.28, 5.97, 0.00]]], [4149804, 3, [2, [0.16, 0.39, 0.00]]], ['Willow Tree', ['Willow'], 'hop down', getPrice('Willow_Logs'), round(67.5)]);
+  Teak.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Teak Tree', ['Teak'], 'hop down', getPrice('Teak_Logs'), 85]);
+  Maple.init([3488222, 13, [2, [7.63, 1.17, 0.00]]], [528703, 6, [2, [0.45, 3.49, 0.00]]], [6135002, 7, [2, [0.09, 1.70, 0.00]]], ['Maple Tree', ['Maple'], 'hop down', getPrice('Maple_Logs'), 100]);
+  Mahogany.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Mahogany Tree', ['Mahogany'], 'hop down', getPrice('Mahogany_Logs'), 125]);
+  Yew.init([3430253, 6, [2, [0.09, 0.13, 0.00]]], [3232359, 8, [2, [0.15, 0.33, 0.00]]], [0, 0, [0, [0.00, 0.00, 0.00]]], ['Yew Tree', ['Yew'], 'hop down', getPrice('Yew_Logs'), 175]);
+  Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Magic Tree', ['Magic'], 'hop down', getPrice('Magic_Logs'), 250]);
+  Cursed_Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cursed Magic Tree', ['Cursed'], 'hop down', getPrice('Cursed_Magic_Logs'), 275]);
+  Elder.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Elder Tree', ['Elder'], 'hop down', getPrice('Elder_Logs'), 325]);
+  Crystal.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cyrstal Tree', ['Crystal'], 'hop down', getPrice('Crystal_Logs'), round(434.5)]);
+end;
+
+function kTree.debug(): T2DPointArray;
+var
+  trunkTPA: TPointArray;
+  clickAbles: T2DPointArray;
+  box: TBox;
+  x: integer;
+begin
+  box := mainScreen.playerBox;
+  box.expand(400);
+  box.X1 := box.X1 - 400;
+  box.x2 := minimap.x1 - 1;
+  box.Y2 := chatBox.y1 - 35;
+
+  findColorsTolerance(trunkTPA, self.bottom_col.color, box, self.bottom_col.tolerance, self.bottom_col.settings);
+
+  mainScreen.filterPointsPlayer(trunkTPA);
+
+  clickAbles := trunkTPA.toATPA(15);
+  clickAbles.sortFromMidPoint(mainScreen.playerPoint);
+
+  result := clickAbles;
+end;
+
+function kTree.findTree(hoverNext: Boolean = false): Boolean;
+var
+  ATPA: T2DPointArray;
+  i, x, y: Integer;
+  failTimer: TTimeMarker;
+begin
+  {$IFDEF NAS_DRAWING}
+    OSD.status.update('Finding: ' + self.settings.name);
+    OSD.refresh();
+  {$ENDIF}
+  ATPA := self.debug();
+  if length(ATPA) < 1 then
+    exit(false);
+
+  failTimer.reset();
+  failTimer.start();
+
+  for i := 0 to high(ATPA) do
+  begin
+    if failTimer.getTime() > 15000 then
+      exit(false);
+    {$IFDEF NAS_DRAWING}
+      NAS.Drawing.drawBox(ATPA[i].getBounds(), false, clBlue);
+    {$ENDIF}
+    mouse(ATPA[i].getBounds().getGaussPoint());
+    if isMouseOverText(self.settings.overText) then
+      if hoverNext then
+        exit(true)
+      else if (random(4) <> 0) then          // 75% chance of left click
+        begin
+          getMousePos(x, y);
+          result := multiClick([x, y], 15, 3); // If left click, 15% chance to multi-click
+          smallRandomMouse();
+          break();
+        end else
+        begin
+          fastClick(MOUSE_RIGHT);
+          if chooseOption.select([self.settings.cO]) then
+          begin
+            smallRandomMouse();
+            exit(true);
+          end;
+        end;
+  end;
+end;
+
+function kTree.chopDone(): boolean;
+var
+  timeout: TTimeMarker;
+  start, toWait: Integer;
+begin
+  if not isLoggedIn() then
+    exit;
+
+  minimap.waitPlayerMoving();
+
+  timeout.reset();
+  timeout.start();
+
+  start := tabBackpack.count();
+  toWait := randomRange(15000,20000);
+
+  repeat
+    if tabBackpack.isFull() then
+      exit(true);
+    if random(100) > 80 then
+      makeItemsAntiBan(SKILL_WOODCUTTING)
+    else
+      wait(randomRange(800,1200));
+  until timeout.getTime() > toWait;
+
+  if tabBackpack.count() <> start then
+    exit(false)
+  else
+    Result := true;
+end;
+
+function kTree.cut(): integer;
+var
+  invStart: Integer;
+begin
+  if tabBackpack.isFull() then exit;
+  invStart := tabBackpack.count();
+
+  while not tabBackpack.isFull() do
+  begin
+    if self.findTree(false) then
+    begin
+      {$IFDEF NAS_DRAWING}
+        OSD.status.update('Cutting: ' + self.settings.name);
+        OSD.refresh();
+      {$ENDIF}
+      repeat
+        wait(600);
+      until self.chopDone() or tabBackpack.isFull();
+    end else
+    begin
+      {$IFDEF NAS_DRAWING}
+        OSD.status.update('Didnt find: ' + self.settings.name);
+      {$ENDIF}
+    end;
+  end;
+  result := (28 - invStart);
+end;
+//
+//  end kTree Methods
+//
+{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+//
+//  kOre Methods
+//
+procedure kOre.init(_rock_col, _ore_col: TColorData; _settings: kGameObject);
+begin
+  self.rock_col := _rock_col;
+  self.ore_col := _ore_col;
+  self.settings := _settings;
+end;
+
+procedure initOres();
+begin
+  Copper.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Copper Rocks', ['Copper', 'Ore'], 'mine', getPrice('Copper_Ore'), round(17.5)]);
+  Tin.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Tin Rocks', ['Tin', 'ore'], 'mine', getPrice('Tin_ore'), round(17.5)]);
+  Iron.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Iron Rocks', ['Iron', 'ore'], 'mine', getPrice('Iron_ore'), 35]);
+  Silver.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Silver Rocks', ['Silver', 'ore'], 'mine', getPrice('Silver_ore'), 40]);
+  Coal.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Coal Rocks', ['Coal', 'rocks'], 'mine', getPrice('Coal'), 50]);
+  Gold.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Gold Rocks', ['Gold', 'ore'], 'mine', getPrice('Gold_ore'), 65]);
+  Mithril.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Mithril Rocks', ['Mithril', 'ore'], 'mine', getPrice('Mithril_ore'), 80]);
+  Adamantite.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Adamantite Rocks', ['Adamantite', 'ore'], 'mine', getPrice('Adamantite_ore'), 95]);
+  Runite.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Runite Rocks', ['Runite', 'ore'], 'mine', getPrice('Runite_ore'), 125]);
+end;
+//
+//  end kOre Methods
+//
+{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+//
+//  kWisp Methods
+//
+procedure kWisp.init(_col: TColorData; _settings: kGameObject);
+begin
+  self.col := _col;
+  self.settings := _settings;
+end;
+
+procedure initWisps();
+begin
+  Pale.init([13150361, 11, [2, [0.20, 0.67, 0.00]]], ['Pale Wisp', ['arvest', 'Pale', 'Wisp'], 'arvest', getPrice('Pale_energy'), 0]);
+end;
+
+function kWisp.findWisps(hoverNext: Boolean = false): Boolean;
+var
+  TPA: TPointArray;
+  wisps: T2DPointArray;
+  x, y: Integer;
+  searchBox: TBox;
+begin
+  searchBox := [mainScreen.playerBox.X1 - 600, mainScreen.playerBox.Y1 - 400, mainScreen.playerBox.X2 + 600, mainScreen.playerBox.Y2 + 400];
+
+  {$IFDEF NAS_DRAWING}
+    NAS.Drawing.drawBox(searchBox, false, clBlue);      //remove later if it's a good search area
+  {$ENDIF}
+
+  self.col.gatherIn(TPA, searchBox);
+  wisps := TPA.toATPA(5, 5);
+  wisps.sortFromMidPoint(mainScreen.playerPoint);
+
+  for x := 0 to high(wisps) do
+  begin
+    {$IFDEF NAS_DRAWING}
+      NAS.Drawing.debugTPA(wisps[x]);
+    {$ENDIF}
+    mouse(wisps[x].getBounds().getGaussPoint());
+    if isMouseOverText(self.settings.overText) then
+      if hoverNext then
+      begin
+        exit(true)
+      end else if (random(4) <> 0) then          // 75% chance of left click
+        begin
+          getMousePos(x, y);
+          result := multiClick([x, y], 15, 3); // If left click, 15% chance to multi-click
+          smallRandomMouse();
+          break();
+        end else
+        begin
+          fastClick(MOUSE_RIGHT);
+          if chooseOption.select([self.settings.cO]) then
+          begin
+            smallRandomMouse();
+            exit(true);
+          end;
+        end;
+  end;
+end;
+
+function kWisp.doneHarvesting(): boolean;
+var
+  harvestTimer: TTimeMarker;
+  avg, timeout, done: Integer;
+begin
+  if not isLoggedIn() then
+    exit;
+
+  timeout := (25000 + random(15000)); //timeout after random(25-40) seconds
+
+  done := 0;
+
+  harvestTimer.reset();
+  harvestTimer.start();
+
+  repeat
+    avg := getPixelShiftAverage(mainscreen.playerBox, 100, 300);
+
+    if (inRange(avg, 0, 600)) then
+    begin
+      Inc(done);
+
+      if (done = 1) then
+        Continue;
+    end else
+      done := 0;
+
+    if (done >= 2) or (tabBackpack.isFull()) then
+    begin
+      Result := True;
+      {$IFDEF NAS_DRAWING}
+        OSD.status.update('Done Harvesting!');
+      {$ENDIF}
+      Break;
+    end;
+
+  until (harvestTimer.getTime() > timeout) or (not isLoggedIn());
+end;
+
+function kWisp.findRift(): Boolean;
+begin
+  result := false;
+end;
+
+procedure kWisp.convertMemories(select: Integer);
+begin
+  select := 0;
+end;
+//
+//  end kWisp Methods
+//
+{~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+//
+//  kBank Methods
+//
+procedure kBank.init(_color: TColorData; _settings: kGameObject);
+begin
+  self.color := _color;
+  self.settings := _settings;
+end;
+
+procedure initBanks();
+begin
+  Blue.init([0, 18, [2, [0.07, 0.90, 0.00]]], ['Blue Banker', ['anker'], 'ank', 0]);
+  Gray.init([5398927, 15, [2, [0.05, 0.20, 0.00]]], ['Gray Banker', ['anker'], 'ank', 0]);
+  Chest.init([0, 18, [2, [0.07, 0.90, 0.00]]], ['Bank Chest', ['hest'], 'ank', 0]);
+  Stiles.init([7574491, 9, [2, [0.10, 2.58, 0.00]]], ['Stiles', ['tiles'], 'xchange', 0]);
+end;
+
+function kBank.find(mouseStyle: Integer = MOUSE_LEFT; debug: boolean = false):boolean ;
+var
+  TPA: TPointArray;
+  bankers: T2DPointArray;
+  i, x, y: integer;
+  box: TBox;
+  failTimer: TTimeMarker;
+begin
+  if (not isLoggedIn()) then
+    exit;
+
+  OSD.status.update('Finding Bank...');
+  OSD.refresh();
+
+  box := mainScreen.playerBox;
+  box.expand(300);
+  findColorsTolerance(TPA, self.color.color, box, self.color.tolerance, self.color.settings);
+  mainScreen.filterPointsPlayer(TPA);
+  bankers := TPA.toATPA(25);
+  bankers.sortFromMidPoint(mainScreen.playerPoint);
+  for i := high(bankers) downto 0 do
+    if (length(bankers[i]) < 10) then
+      bankers[i].deleteIndex(i);
+  if debug then
+  begin
+    NAS.Drawing.DebugATPA(bankers);
+    repeat until false;
+  end;
+
+  failTimer.start();
+
+  for i := 0 to high(bankers) do
+  begin
+    if length(bankers[i]) = 1 then     //start at the next result if TPA length is only 1
+      inc(i);
+    if failTimer.getTime() > 15000 then
+      exit(false);
+    {$IFDEF NAS_DRAWING}
+      NAS.Drawing.drawBox(bankers[i].getBounds(), false, clYellow);
+    {$ENDIF}
+    mouse(bankers[i].getBounds().getGaussPoint());
+    if isMouseOverText(self.settings.overText, 600) then
+    begin
+      case mouseStyle of
+        MOUSE_LEFT:
+        begin
+          getMousePos(x, y);
+          result := multiClick([x, y], 15, 3); // If left click, 15% chance to multi-click
+          smallRandomMouse();
+          break();
+        end;
+        MOUSE_RIGHT:
+        begin
+          fastClick(MOUSE_RIGHT);
+          if chooseOption.select([self.settings.cO]) then
+          begin
+            smallRandomMouse();
+            exit(true);
+          end;
+        end;
+      end;
+    end;
+  end;
+end;
+
+//
+//  end kBank Methods
+//
+{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+//
+//  kfish Methods
+//
+
+procedure kFish.init(_minWait, _maxWait: Integer; _settings: kGameObject);
+begin
+  self.minWait := _minWait;
+  self.maxWait := _maxWait;
+  self.settings := _settings;
+end;
+
+procedure initFish();
+begin
+  Tuna.init(8000, 10000, ['Tuna', ['age'], 'arpoon', getPrice('Raw_Tuna'), 80]);
+  Lobster.init(18000, 22000, ['Lobster', ['age'], 'age', getPrice('Raw_Lobster'), 90]);
+end;
+
+function kFish.findFishingSpot(hovernext: boolean):boolean;
+var
+  fishingSpots, b, w: T2DPointArray;
+  bubbles, waves: TPointArray;
+  failTimer: TTimeMarker;
+  bubble_col, wave_col: TColorData;
+  searchBox: TBox;
+  x, y, i: integer;
+begin
+  if (not isLoggedIn()) then
+    exit;
+
+  bubble_col := [13211499, 11, [2, [0.22, 1.96, 0.00]]];
+  wave_col := [10147218, 17, [2, [1.29, 2.20, 0.00]]];
+
+  searchBox := mainScreen.playerBox;
+  searchBox.expand(100);
+  NAS.drawing.drawBox(searchBox, false, clBlue);
+
+  findColorsTolerance(waves, wave_col.color, searchBox, wave_col.tolerance, wave_col.settings);
+  findColorsTolerance(bubbles, bubble_col.color, searchBox, bubble_col.tolerance, bubble_col.settings);
+
+  b := bubbles.toATPA(30);
+  w := waves.toATPA(30);
+
+  if (length(w) < 1) and (length(b) <1) then exit(false);
+
+  //for i := 0 to high(w) do
+    //insert(w[i], fishingSpots);
+
+  for i := 0 to high(b) do
+    insert(b[i], fishingSpots);
+
+  for i := 0 to high(fishingSpots) do
+    mainScreen.filterPointsPlayer(fishingSpots[i]);
+
+  fishingSpots.sortFromMidPoint(mainScreen.playerPoint);
+
+  failTimer.start();
+
+  for i := 0 to high(fishingSpots) do
+  begin
+    if failTimer.getTime() > 15000 then
+      exit(false);
+    {$IFDEF NAS_DRAWING}
+      NAS.Drawing.drawBox(fishingSpots[i].getBounds(), false, clYellow);
+    {$ENDIF}
+    mouse(fishingSpots[i].getBounds().getGaussPoint());
+    if isMouseOverText(self.settings.overText) then
+      if hoverNext then
+        exit(true)
+      else
+        if self.settings.overText[0] = self.settings.cO then
+        begin
+          getMousePos(x, y);
+          result := multiClick([x, y], 15, 3); // If left click, 15% chance to multi-click
+          smallRandomMouse();
+          break();
+        end else
+        begin
+          fastClick(MOUSE_RIGHT);
+          if chooseOption.select([self.settings.cO]) then
+          begin
+            smallRandomMouse();
+            exit(true);
+          end;
+        end;
+  end;
+end;
+
+function kFish.fishDone(): boolean;
+var
+  timeout: TTimeMarker;
+  start, toWait: Integer;
+begin
+  if not isLoggedIn() then
+    exit;
+
+  minimap.waitPlayerMoving();
+
+  timeout.reset();
+  timeout.start();
+
+  start := tabBackpack.count();
+  toWait := randomRange(self.minWait,self.maxWait);
+
+  repeat
+    if tabBackpack.isFull() then
+      exit(true);
+    if random(100) > 80 then
+      makeItemsAntiBan(SKILL_FISHING)
+    else
+      wait(randomRange(800,1200));
+  until timeout.getTime() > toWait;
+
+  if tabBackpack.count() <> start then
+    exit(false)
+  else
+    Result := true;
+end;
+
+function kFish.fish(): integer;
+var
+  invStart: Integer;
+begin
+  if tabBackpack.isFull() then exit;
+  invStart := tabBackpack.count();
+
+  while not tabBackpack.isFull() do
+  begin
+    if self.findFishingSpot(false) then
+    begin
+      {$IFDEF NAS_DRAWING}
+        OSD.status.update('Fishing: ' + self.settings.name);
+        OSD.refresh();
+      {$ENDIF}
+      repeat
+        wait(600+random(600 + random(600)));
+      until self.fishDone() or tabBackpack.isFull();
+    end else
+    begin
+      {$IFDEF NAS_DRAWING}
+        OSD.status.update('Didnt find: ' + self.settings.name);
+        OSD.refresh();
+      {$ENDIF}
+    end;
+  end;
+  result := (28 - invStart);
+end;
+//
+//  end kfish Methods
+//
+{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+//
+//  kLoot Methods
+//
+
+procedure kLoot.init(_color: TColorData; _invDTM: integer; _settings: kGameObject);
+begin
+  self.color := _color;
+  self.invDTM := _invDTM;
+  self.settings := _settings;
+end
+
+procedure initLoots();
+begin
+  dragonBones.init([13476455, 3, [2, [0.09, 1.25, 0.00]]], DTMFromString('mlwAAAHicY2dgYOBjZ2BgBGJBIJYDYlkomwOIjzIxMBwD4lNAfBaIDwHxPiDeA2Jv2gjUzYQVSzLgBox4MBQAAGuQCGo='), ['Dragon_bones', ['ragon'], 'ake', 72]);
+  lobstah.init([], DTMFromString('mrAAAAHic42BgYDjAxsBwHIjPAPFRIN4FxfuB+AQIMwHFgXgHEO8D4v1AfByILwHxOSCudZIBmsKEE0sy4AeMBDAMAAAl5w2P'), ['Raw_lobster', ['obster'], 'ake', 0]);
+  sopII.init([], DTMFromString('mbQAAAHicY2VgYNjHxsBwCogPAPE2KH2ciYHhGBDvAeKjQHwRiKfXGgBVM6FgSQZMwIgFgwEA/bIJNQ=='), ['Sign_of_the_porter_II', ['ign', 'of', 'the'], 'ear', 0]);
+  blueDragonHide.init([13179148, 11, [2, [0.15, 0.21, 0.00]]], DTMFromString('mlwAAAHicY2dgYDjExsBwDoiPAvF2IN4ExLuB+BQQH2ECigPxTiDeC8QngfgSEJ8HYgH12UDdTFixJANuwIgHQwEAfPAL6g=='), ['Blue_dragonhide', ['lue','ragonhide'], 'ick', 0]);
+end;
+
+procedure freeLoots();
+begin
+  freeDTM(dragonBones.invDTM);
+  freeDTM(lobstah.invDTM);
+  freeDTM(sopII.invDTM);
+  freeDTM(blueDragonHide.invDTM);
+end;
+
+function kLoot.hasInv(): boolean;
+begin
+  if tabBackpack.countDTM(self.invDTM) > 1 then
+    result := true;
+end;
+
+function kLoot.count(): integer;
+begin
+  result := tabBackpack.countDTM(self.invDTM);
+end;
+
+function kLoot.debug(): T2DPointArray;
+var
+  TPA: TPointArray;
+  ATPA: T2DPointArray;
+  box: TBox;
+begin
+  box := mainScreen.playerBox;
+  box.expand(400);
+  box.X1 := box.X1 - 400;
+  box.x2 := box.x2 + 400;
+  NAS.Drawing.DrawBox(box, false, clBlue);
+  findColorsTolerance(TPA, self.color.color, box, self.color.tolerance, self.color.settings);
+  mainScreen.filterPointsPlayer(TPA);
+  ATPA := TPA.toATPA(50,50);
+  result := ATPA;
+end;
+
+function kLoot.find(): boolean;
+var
+  ATPA: T2DPointArray;
+  failTimer: TTimeMarker;
+  i, x, y: integer;
+begin
+  ATPA := self.debug();
+  ATPA.sortFromMidPoint(mainScreen.playerPoint);
+  failtimer.start();
+  for i := 0 to high(ATPA) do
+  begin
+    if failTimer.getTime() > 15000 then
+      exit(false);
+    {$IFDEF NAS_DRAWING}
+      NAS.Drawing.drawBox(ATPA[i].getBounds(), false, clYellow);
+    {$ENDIF}
+    mouse(ATPA[i].getBounds().getGaussPoint());
+    if isMouseOverText(self.settings.overText) then
+      if random(100) < 93 then
+        begin
+          getMousePos(x, y);
+          result := multiClick([x, y], 15, 3); // If left click, 15% chance to multi-click
+          smallRandomMouse();
+          exit(true);
+        end else
+        begin
+          fastClick(MOUSE_RIGHT);
+          if chooseOption.select([self.settings.cO]) then
+          begin
+            smallRandomMouse();
+            exit(true);
+          end;
+        end;
+  end;
+end;
+//
+// end kLoot Methods
+//
+begin
+  initTrees();
+  //initOres();
+  //initWisps();
+  initFish();
+  initBanks();
+  initLoots();
+  addonTerminate('freeLoots');
+end;

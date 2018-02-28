@@ -1,0 +1,198 @@
+program kLoot;
+
+{$include_once srl-6/srl.simba}
+{$include_once klamor/kMisc.simba}
+{$f-}
+
+type
+
+  TLoot = record
+    name: String;       //stores information for lootable items
+    overText: TStringArray;
+    colours: T2DColorData;
+    invDTM: Integer;
+  end;
+
+procedure TLoot.init(_name: String; _overText: TStringArray; _colours: T2DColorData; _invDTM: Integer)
+begin
+  self.name := _name;
+  self.overText := _overText;
+  self.colours := _colours;
+  self.invDTM := _invDTM;
+end;
+
+function TLoot.hasInv(): Boolean;
+var
+  x, y: integer;
+begin
+  gameTabs.openTab(TAB_BACKPACK);
+  if findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then
+    result := true;
+end;
+
+procedure TLoot.dragInv()   //drag self.invDTM to a random inv slot
+var
+  x, y: Integer;
+begin
+  if findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then
+    tabBackpack.dragSlot(tabBackpack.pointToSlot([x, y]), random(28) + 1);
+end;
+
+procedure TLoot.organize(slots: TIntegerArray)            //moves self.invDTM items to slots [X..Y]
+var
+    j, x, y: Integer;
+begin
+  if findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then
+  begin
+    for j := 0 to high(slots) do
+      tabBackpack.dragSlot(tabBackpack.pointToSlot([x, y]), slots[j]);
+  end;
+end;
+
+function TLoot.highAlch(): Boolean;   //returns true if player activates high alchemy spell before clicking on loot in inventory
+var
+  x, y: Integer;
+begin                                 //returns true if we succesfully high-alched an item
+  gameTabs.openTab(TAB_BACKPACK);
+  if not findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then
+    exit(false)
+  else begin
+    gameTabs.openTab(TAB_MAGIC);
+    if findDTM(highalchDTM, x, y, tabBackpack.getBounds()) then           //find the high alch spell
+      begin
+        mouse(x, y, 3, 3, MOUSE_LEFT);                                    //click the spell
+        wait(randomRange(150,250));                                       //wait for the interface to change to backpack
+        if not findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then   //find loot.invdtm
+        begin
+          mouse(x, y, 3, 3, MOUSE_LEFT);                                  //click loot.invdtm
+          wait(randomRange(250, 500));
+          if tabBackpack.waitForShift(2000) then
+            result := true;
+        end;
+      end;
+  end;
+end;
+
+function TLoot.superHeat(): Boolean;
+var
+  x, y: Integer;
+begin
+  gameTabs.openTab(TAB_BACKPACK);
+  if not findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then
+    exit(false)
+  else begin
+    gameTabs.openTab(TAB_MAGIC);
+    if findDTM(superheatDTM, x, y, tabBackpack.getBounds()) then           //find the superheat spell
+      begin
+        mouse(x, y, 3, 3, MOUSE_LEFT);                                    //click the spell
+        wait(randomRange(150,250));                                       //wait for the interface to change to backpack
+        if not findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then   //find loot.invdtm
+        begin
+          mouse(x, y, 3, 3, MOUSE_LEFT);                                  //click loot.invdtm
+          if tabBackpack.waitForShift(2000) then
+            result := true;
+        end;
+      end;
+  end;
+end;
+
+function TLoot.count(): Integer;   //returns the amount of self.invDTM found in our inventory
+var
+  x: integer;
+begin
+  x := tabBackpack.countDTM(self.invDTM);
+  result := x;
+end;
+
+procedure TLoot.bury()
+var
+  x, y: integer;
+begin
+  gameTabs.openTab(TAB_BACKPACK);
+  if not findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then
+  begin
+    writeLn('Cant find ', self.name, ' in inventory!');
+    exit;
+  end else
+  case random(2) of
+    0: repeat
+      actionBarChar(players[currentPlayer].strings[BURY_KEY]);
+      wait(randomRange(150,350));
+    until not findDTM(self.invDTM, x, y, tabBackpack.getBounds());
+    1: repeat
+      if findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then
+        mouse(x, y, 3, 3, MOUSE_LEFT);
+      wait(randomRange(150,350));
+    until not findDTM(self.invDTM, x, y, tabBackpack.getBounds());
+  end;
+end;
+
+function TLoot.find(hoverNext: Boolean = false): Boolean; // modified from Mayor's Resource Dungeon
+var
+  i, next, x, y: Integer;
+  TPAs, ATPA: T2DPointArray;
+begin
+
+  setLength(TPAs, length(self.colours));
+
+  for i := 0 to high(self.colours) do // Look for both TMSObject colours
+  begin                               // Store each result in it's own TPA
+    self.colours[i].gatherIn(TPAs[i], mainScreen.getBounds());
+    mainscreen.filterPointsPlayer(TPAs[i]);
+    if (length(TPAs[i]) < 1) then exit(false);
+  end;
+
+  ATPA := TPAs[high(self.colours)].cluster(15); // Create ATPA from second colour's TPA only
+  if (length(ATPA) < 1) then exit(false);
+  ATPA.sortFromMidPoint(mainScreen.playerPoint);
+
+  if hoverNext then next := 1; // Start index at 1 if hovering second closest rock (next rock)
+
+  for i := next to high(ATPA) do
+    if TPAs[0].isPointNear(middleTPA(ATPA[i]), 15) then // Check if first TPA is near the ATPA[i] TPA
+    begin                                               // (i.e. Both colours are found within 15px of each other).
+      mouse(ATPA[i].getBounds().getRandomPoint());
+
+      if isMouseOverText(self.overText) then
+        if hoverNext then
+          exit(true)
+        else begin
+          getMousePos(x, y);
+          result := multiClick([x, y], 15, 3); // If left click, 15% chance to multi-click
+          smallRandomMouse();
+        end;
+    end;
+end;
+
+function TLoot.eat(): Boolean;
+var
+  x, y: integer;
+begin
+  if not self.hasInv() then;
+      exit(false)
+  else begin
+    actionBarChar(players[currentPlayer].strings[FOOD_KEY]);
+    exit(true);
+  end;
+end;
+
+function TLoot.isEquipped(): Boolean;
+var
+  x, y: integer;
+begin
+  gameTabs.openTab(TAB_EQUIPMENT);
+  if findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then
+    result := true;
+end;
+
+procedure TLoot.equip()
+var
+  x, y: integer;
+begin
+  if self.isEquipped() then exit;
+  if self.hasInv() then
+    if findDTM(self.invDTM, x, y, tabBackpack.getBounds()) then
+      mouse(x, y, 3, 3, MOUSE_LEFT);
+  else
+    writeLn('Couldnt equip ', self.name, 'because its not in our inventory!');
+end;

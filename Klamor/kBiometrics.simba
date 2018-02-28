@@ -1,0 +1,92 @@
+//
+// kBiometrics.simba
+// Author: Klamor
+// Updated: 12/6/17
+//
+
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$f-}
+
+//
+//  FOCUS : Percentage of runtime that we focus on the game
+//  FATIGUE : Percentage to factor when delaying actions
+//  MSPEED : Adjusts SRL-6's mouseSpeed variable
+//  RTIME : Time it takes to react to various changes
+//
+
+const
+  minFocus = 0;                   //MIN CLIENT FOCUS %
+  maxFocus = 100;                 //MAX CLIENT FOCUS %
+  minFatigue = 0;                 //MIN PLAYER FATIGUE %
+  maxFatigue = 100;               //MAX PLAYER FATIGUE %
+  minmSpeed = 5;                  //MIN MOUSE SPEED
+  maxmSpeed = 50;                 //MAX MOUSE SPEED
+  minrTime = 250;                 //MIN REACTION TIME
+  maxrTime = 1500;                //MAX REACTION TIME
+  boredThreshold = (60000*13);    //MAX RUNTINE BEFORE BORED
+  maxActivityTime = (60000 * 45); //MAX RUNTIME FOR ANY ACTIVITY
+
+type
+  kBiometrics = record
+    mSpeed : extended;      //mouse speed var
+    rTime : extended;       //reaction time var
+    focus : extended;       //focus var
+    fatigue : extended;     //fatigue var
+    bored : boolean;        //bored (true/false)
+  end;
+
+procedure kBiometrics.init(_mSpeed, _rTime, _focus, _fatigue: extended; _bored: boolean);
+begin
+  self.mSpeed := _mSpeed;
+  self.rTime := _rTime;
+  self.focus := _focus;
+  self.fatigue := _fatigue;
+  self.bored := _bored;
+end;
+
+procedure kBiometrics.print();
+begin
+  writeLn('Player Settings:');
+  writeLn('Mouse Speed: ', self.mSpeed);
+  writeLn('Reaction Time: ', self.rTime);
+  writeLn('Focus%: ', self.focus);
+  writeLn('Fatigue%: ', self.fatigue);
+  writeLn('Is Bored: ', self.bored);
+end;
+
+procedure kBiometrics.defaultHuman();
+begin
+  self.init(20.0, 250.0, 100.0, 0.00, false);
+end;
+
+procedure kBiometrics.tired();
+begin
+  self.focus := (self.focus - randomRange(10.0,20.0));                //lose 10-20% focus
+    if (self.focus < minFocus) then self.focus := minFocus;
+  self.fatigue := (self.fatigue + randomRange(10.0,20.0));            //add 10-20% fatigue
+    if (self.fatigue > maxFatigue) then self.fatigue := maxFatigue;
+  self.mSpeed := (self.mSpeed * ((100/self.fatigue)/2));              //multiply mouse speed by (fatigue% / 2)
+    if (self.mSpeed < minmSpeed) then self.mSpeed := minmSpeed;
+  self.rTime :=  (self.rTime  + randomRange(75,250));                 //increase reaction time by 75-250ms
+    if (self.rTime > maxrTime) then self.rTime := maxrTime;
+end;
+
+procedure kBiometrics.energize();
+begin
+  self.focus := (self.focus + randomRange(30.0,50.0));                //adds 30-50% focus
+    if (self.focus > maxFocus) then self.focus := maxFocus;
+  self.fatigue := (self.focus - randomRange(5,10));                    //lose 5-10% fatigue
+    if (self.fatigue < minFatigue) then self.fatigue := minFatigue;
+  self.mSpeed := (self.mSpeed + randomRange(15,20));                  //speeds up mouseSpeed by 15-20 interval
+    if (self.mSpeed > maxmSpeed) then self.mSpeed := maxmSpeed;
+  self.rTime := (self.rTime - randomRange(25,50));                    //subtracts 25-50ms from reaction time
+    if (self.rTime < minrTime) then self.rTime := minrTime;
+end;
+
+procedure kBiometrics.randomize();
+begin
+  self.focus := randomRange(minFocus,maxFocus);
+  self.fatigue := randomRange(minFatigue,maxFatigue);
+  self.mSpeed := randomRange(minmSpeed,maxmSpeed);
+  self.rTime := randomRange(minrTime,maxrTime);
+end;

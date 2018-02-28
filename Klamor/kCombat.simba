@@ -1,0 +1,206 @@
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once NAS/NAS.simba}
+{$include_once Klamor/kOnScreenDisplay.simba}
+{$include_once Klamor/kGameObject.simba}
+{$include_once bonsai/blCombat.simba}
+{$include_once Klamor/kMisc.simba}
+{$f-}
+
+type
+  kMonster = record
+    constXP       : extended;
+    cmbtXP        : extended;
+    name          : string;
+  end;
+
+var
+  Chicken, Cow, Goblin, HillGiant, FleshCrawler, MossGiant, FireGiant, BlueDragon, Ghoul, BabyBlueDragon, Pyrefiend: kMonster;
+
+procedure kMonster.init(_constXP, _cmbtXP: extended; _name: string);
+begin
+  self.constXP := _constXP;
+  self.cmbtXP := _cmbtXP;
+  self.name := _name;
+end;
+
+procedure initMons();
+begin       {_constXP, _cmbtXP: extended; _name: String;}
+  Chicken.init(8.2, 24.9, 'Chicken');
+  Cow.init(8.4, 25.5, 'Cow');
+  FleshCrawler.init(42.2, 128.0, 'Flesh-crawler');
+  MossGiant.init(136.5, 45.0, 'Moss-giant');
+  FireGiant.init(140.1, 424.8, 'Fire-Giant');
+  BlueDragon.init(86.7, 263.0, 'Blue-Dragon');
+  Ghoul.init(45.6, 138.3, 'Ghoul');
+  BabyBlueDragon.init(23.9, 72.6, 'Baby-blue-dragon');
+  Pyrefiend.init(41.1, 125.7, 'Pyrefiend');
+end;
+
+type
+  kCombatManager = record
+    regenHP         : integer;           //percent HP to regenerate at
+    regenAD         : integer;           //percent AD to regenerate at
+    eatPercent      : integer;           //percent to eat at
+    quitPercent     : integer;           //percent to quit at
+    sgs_key         : integer;           //sgs key
+    bury_Key        : integer;            //bury bones key
+    food_key        : integer;            //food key
+    qp_key          : integer;            //quick prayers key
+    sop_key         : integer;            //sign of porter key
+    maxFight        : integer;           //max time to fight for
+    minFight        : integer;           //min time to fight for
+    maxSearch       : integer;           //max time to search for
+    restFlag        : boolean;           //isResting Flag
+    npc             : Tnpc;              //blCombat.simba NPC
+    monster         : kMonster;          //monster to fight
+  end;
+
+var
+  kCombatMgr: kCombatManager;
+
+procedure kCombatManager.combatCheck();
+var
+  sgsTimer: TTimeMarker;
+begin
+  if (actionbar.getAdrenalinePercent() > 50) and (self.sgs_key > 0) then
+  begin
+    sgsTimer.reset();
+    sgsTimer.start();
+    OSD.status.update('Using SGS Special Attack!');
+    OSD.refresh();
+    repeat
+      actionBar.clickSlot(self.sgs_key, MOUSE_LEFT);
+      wait(600 + random(600) + random(600) + random(600));
+    until (actionBar.getAdrenalinePercent() < 50) or (sgsTimer.getTime() > 2500);
+  end;
+end;
+
+function kCombatManager.healthCheck(): boolean;
+begin
+  OSD.status.update('Health Check: ' + toStr(actionBar.getHPPercent()));
+  OSD.refresh();
+
+  if actionBar.getHPPercent() < self.quitPercent then
+  begin
+    writeLn('Terminating due to low HP!');
+    terminateScript();
+  end
+  else if actionBar.getHPPercent() < self.eatPercent then
+  begin
+    OSD.status.update('Eating Food...');
+    OSD.refresh();
+    actionBar.clickSlot(self.food_key, MOUSE_LEFT);
+    exit(true);
+  end
+  else if (actionbar.getHPPercent() < self.regenHP) and (actionBar.getAdrenalinePercent() > self.regenAD) then
+  begin
+    OSD.status.update('Activating Regeneration...');
+    OSD.refresh();
+    actionBar.setHealing(true);
+    repeat
+      if targetInfo.hasTarget() then
+        self.combatCheck();
+      if targetInfo.hasTarget() then
+        exit(false);
+      wait(600 + random(600));
+    until actionBar.getAdrenalinePercent() = 0;
+    exit(true);
+  end
+  else
+    Result := not targetInfo.hasTarget();
+end;
+
+procedure kCombatManager.init(_monster: kMonster);       //uses default values until we implement playerforms
+begin
+  self.regenHP := 90;
+  self.regenAD := 80;
+  self.eatPercent := 70;
+  self.quitPercent := 25;
+  self.maxFight := randomRange(60000,90000);
+  self.minFight := randomRange(45000,50000);
+  self.maxSearch := (8 * 60000);        //8 mins
+  self.monster := _monster;
+  self.npc.init(self.monster.name);
+  self.restFlag := not self.healthCheck();
+end;
+
+procedure kCombatManager.setup(_sgs_key, _bury_key, _food_key, _qp_key, _sop_key: integer);
+begin
+  self.sgs_key := _sgs_key;
+  self.bury_Key := _bury_key;
+  self.food_key := _food_key;
+  self.qp_key := _qp_key;
+  self.sop_key := _sop_key;
+end;
+
+function kCombatManager.fight(): boolean;
+begin
+  result := combatMgr.attack(self.npc, true {wait until dead},
+         nil, MOUSE_RIGHT);
+end;
+
+function kCombatManager.attack(): boolean;
+begin
+  result := combatMgr.attack(self.npc, false {wait until dead},
+         nil {use default foodhandler}, MOUSE_RIGHT);
+end;
+
+procedure kCombatManager.QuickPrayers(state: boolean);
+begin
+  if self.qp_key > 0 then
+  begin
+    //if actionBar.isIconEnabled(AB_BAR_PRAYER) = state then
+      //exit;
+    OSD.status.update('Activating Quick Prayers!');
+    OSD.refresh();
+    if random(100) > 83 then
+      actionBar.clickSlot(self.qp_key, MOUSE_LEFT)
+    else
+      actionBar.setQuickPrayer(state);
+  end;
+end;
+
+procedure kCombatManager.equipSOP(sign: kLoot);
+begin
+  if not sign.hasInv() or (self.sop_key < 0) then
+    exit();
+  if not eqSopII.isActive() then
+  begin
+    OSD.status.update('Equipping new Sign of The Porter!');
+    OSD.refresh();
+    if random(100) > 87 then
+      actionBar.clickSlot(self.sop_key, MOUSE_LEFT)
+    else
+      tabBackpack.clickDTM(sign.invDTM, MOUSE_LEFT);
+  end;
+end;
+
+function kCombatManager.combat(): integer;
+var
+  fightTimer: TTimeMarker;
+  tofight, fights: Integer;
+begin
+  tofight := randomRange(self.minFight, self.maxFight);
+  fights := 0;
+  fightTimer.start();
+
+  while fightTimer.getTime() < tofight do
+  begin
+    if self.healthCheck() then
+    begin
+      kCombatMgr.QuickPrayers(true);
+      if self.fight() then
+        inc(fights)
+      else
+      begin
+        OSD.status.update('Didnt find: ' + toStr(self.monster.name));
+        OSD.refresh();
+      end;
+    end;
+  end;
+  result := fights;
+end;
+
+begin
+  initMons();
+end;
