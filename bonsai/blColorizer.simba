@@ -1,0 +1,1529 @@
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  blColorizer.simba                                                  }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+// {$DEFINE SMART}
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once bonsai/blUpdater.simba}
+{$include_once bonsai/blBitmap.simba}
+{$include_once bonsai/blMisc.simba}
+{$include_once Klamor/kOnScreenDisplay.simba}
+{$f-}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+const
+   blColorizerVersion = '1.6';
+   blColorizerVerUrl  = 'http://pastebin.com/raw/BgxzXPFW';
+   blColorizerCodeUrl = 'http://pastebin.com/raw/kxU0Dcvn';
+
+   BLACKLIST_THRESHOLD = 500;    // msec.  if a findcolor takes longer than this we dont want it
+   PIXELSHIFT_WAIT     = 300;    // msec
+   SUCCESS_THRESHOLD   = 0.68;   // what is good enough (percent) to call a color successful
+   FAILURE_THRESHOLD   = 0.22;   // what is bad enough (percent) to call a failure
+   ATTEMPT_THRESHOLD   = 20;     // by this many attempts, demand success or blacklist
+   GRIDSIZE            = 50;     // box size to break up the screen for motion detection
+   CLEANUP_LOW_WATER   = 2000;   // how many colors to keep if we are cleaning up
+   OVERLOAD_MATCHES    = 20000;  // we need to give up somewhere or queries take forever
+   __COLSAVETIMEOUT    = 10000;  // timer to avoid saving the file too often
+   __MOTIONTIMEOUT     = 120000;
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+type
+   TcolRec = record
+      color      : integer;
+      count      : integer;
+      attempts   : integer;
+      matches    : integer;
+      lastPoints : integer;
+      lastObj    : integer;
+      maxPoints  : integer;
+      maxObj     : integer;
+      queryTime  : integer;
+   end;
+
+   TcolSet = array of TcolRec;
+
+   Tcolorizer = record
+      name          : string;
+      discovered    : TcolSet;
+      active        : TcolSet;
+      successful    : TcolSet;
+      blacklist     : TcolSet;
+      runty         : TcolSet;
+      uptext        : string;
+      uptextTimeout : integer;
+      tol           : integer;
+      dist          : integer;
+      minPixels     : integer;
+      maxPixels     : integer;
+   end;
+
+var
+   __COLSAVETIMER: TTimeMarker;
+   
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  successPercent()                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcolRec.successPercent(): extended;
+begin
+   result := (self.matches / self.attempts);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  sortByCount()                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcolSet.sortByCount();
+var
+   i, j, m: integer;
+   tmp: TcolSet;
+begin
+   setLength(tmp, 1);
+   for i := 0 to high(self) - 1 do
+   begin
+      m := i;
+      for j := i + 1 to high(self) do
+      begin
+         if self[j].count > self[m].count then
+            m := j;
+      end;
+      tmp[0]  := self[m];
+      self[m] := self[i];
+      self[i] := tmp[0];
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  sortByMaxPoints()                                                  }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcolSet.sortByMaxPoints();
+var
+   i, j, m: integer;
+   tmp: TcolSet;
+begin
+   setLength(tmp, 1);
+   for i := 0 to high(self) - 1 do
+   begin
+      m := i;
+      for j := i + 1 to high(self) do
+      begin
+         if self[j].maxPoints > self[m].maxPoints then
+            m := j;
+      end;
+      tmp[0]  := self[m];
+      self[m] := self[i];
+      self[i] := tmp[0];
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  sortBySuccess()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  sorts the array by success rate desc secondary sort lastPoints     }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcolSet.sortBySuccess();
+
+var
+   i, j, m: integer;
+   tmp: TcolSet;
+   jsuc, msuc: extended;
+   
+begin
+   setLength(tmp, 1);
+   for i := 0 to high(self) - 1 do
+   begin
+      m := i;
+      for j := i + 1 to high(self) do
+      begin
+         if ((self[j].attempts = 0) or (self[m].attempts = 0)) then continue;
+         jsuc := self[j].successPercent();
+         msuc := self[m].successPercent();
+         if (jsuc > msuc) then
+            m := j; 
+         if ((jsuc = msuc) and (self[j].lastPoints > self[m].lastPoints)) then
+            m := j;          
+      end;
+      tmp[0]  := self[m];
+      self[m] := self[i];
+      self[i] := tmp[0];
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  returnInArray()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcolSet.returnInArray(const c: integer): integer;
+var
+   i: integer;
+begin
+   for i := 0 to high(self) do
+      if (self[i].color = c) then exit(i);
+   exit(-1);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  isInArray()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcolSet.isInArray(const c: integer): boolean;
+var
+   i: integer;
+begin
+   i := self.returnInArray(c);
+   if (i = -1) then
+      result := false
+   else
+      result := true;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  append()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcolSet.append(const t: TcolRec);
+var
+   i: integer;
+begin
+   setLength(self, (length(self) + 1));
+   self[high(self)] := t;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  deleteIndex()                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcolSet.deleteIndex(const index: integer);
+var
+   i : integer;
+begin
+   if not inRange(index, low(self), high(self)) then
+   begin
+      writeln('TcolSet.deleteIndex: ERROR - index (', index, ' is out of range');
+      exit;
+   end;
+
+   for i := index to (high(self) - 1) do
+      self[i] := self[i + 1];
+   setLength(self, (length(self) - 1));
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  delete()                                                           }
+{  Written by: bonsai                                                 }
+{  Date LastModified: 2014/09                                         }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcolSet.delete(const c: integer);
+var
+   i : integer;
+begin
+   i := self.returnInArray(c);
+   if (i >= 0) then
+      self.deleteIndex(i);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  cleanupColors()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcolSet.cleanupColors();
+var
+   i, t, cnt: integer;
+   tmp: TcolSet;
+begin
+   if (length(self) > CLEANUP_LOW_WATER) then
+   begin
+      self.sortByCount();
+      setLength(self, CLEANUP_LOW_WATER);
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  knownObjects()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.knownObjects(stripXml: boolean = true): TStringArray;
+var
+   p: string;
+   i: integer;
+begin
+   setLength(result, 0);
+   p := includePath + 'bonsai\colors\';
+   if (not DirectoryExists(p)) then
+   begin
+      writeln('***** Tcolorizer.knownObjects: ERROR - Color directory not found [' + p, + ']');
+      exit;
+   end;
+
+   result := GetFiles(p, 'xml');
+
+   if (not stripXml) then exit;
+
+   for i := 0 to high(result) do
+   begin
+      result[i] := Replace(result[i], '.xml', '', [rfReplaceAll]);
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  _fpath()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  normalizes self.name into a file path to load the xml              }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer._fpath(): string;
+var
+   s: string;
+begin
+   if (self.name = '') then
+   begin
+      result := '';
+      exit;
+   end;
+   s := lowercase(self.name);
+   s := replace(s, ' ', '-', [rfReplaceAll]);
+   s := replace(s, '/', '-', [rfReplaceAll]);
+   s := replace(s, ':', '-', [rfReplaceAll]);
+
+   result := includePath + 'bonsai\colors\';
+   if (not DirectoryExists(result)) then
+   begin
+      if (CreateDirectory(result)) then
+         writeln('***** Tcolorizer._fpath: created include folder ' + result)
+      else
+         writeln('***** Tcolorizer._fpath: ERROR - Could not create directory '+ result);
+   end;
+
+   result := result + s + '.xml';
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  load()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.load(): boolean;
+var
+  fileId, i, j, k: integer;
+  filePath, fileData: string;
+  allData, colArr, colorSets, cRec: TStringArray;
+  tmp: TcolRec;
+begin
+   result := false;
+   filePath := self._fpath();
+	if (not FileExists(filePath)) then
+	begin
+   	{$IFDEF DEBUG_ON} writeln('***** Tcolorizer.load: Requested file does not exist [', filePath, ']'); {$ENDIF}
+		exit;
+	end;
+
+	fileId := OpenFile(filePath, false);
+	if (fileId = -1) then
+   begin{$IFDEF DEBUG_ON} writeln('***** Tcolorizer.load: OpenFile failed [', filePath, ']'); {$ENDIF}
+      exit;
+   end;
+		if (not ReadFileString(fileId, fileData, FileSize(fileId))) then	
+   begin
+   	{$IFDEF DEBUG_ON} writeln('***** Tcolorizer.load: ReadFileString failed [', filePath, ']'); {$ENDIF}
+		exit;
+	end;
+	CloseFile(fileId);
+
+	// now we have the contents infileData, parse it
+	allData := MultiBetween(fileData, '<colorizer>', '</colorizer>');
+	if (length(allData) <> 1) then
+	begin
+	   writeln('***** Tcolorizer.load: Corrupt file [', filePath,
+	   	'], does not have proper <colorizer></colorizer> tags');
+		exit;
+	end;
+ 	
+   self.name      :=             between('<name>',          '</name>',          allData[0]);
+   self.uptext    :=             between('<uptext>',        '</uptext>',        allData[0]);
+   uptextTimeout  := StrToIntDef(between('<uptextTimeout>', '</uptextTimeout>', allData[0]), 0);
+   self.tol       := StrToIntDef(between('<tol>',           '</tol>',           allData[0]), 0);
+   self.dist      := StrToIntDef(between('<dist>',          '</dist>',          allData[0]), 0);
+   self.minPixels := StrToIntDef(between('<minPixels>',     '</minPixels>',     allData[0]), 0);
+   self.maxPixels := StrToIntDef(between('<maxPixels>',     '</maxPixels>',     allData[0]), 0);
+
+   setLength(self.discovered, 0);
+   setLength(self.active,     0);
+   setLength(self.successful, 0);
+   setLength(self.blacklist,  0);
+   setLength(self.runty,      0);
+
+   colorSets := ['discovered', 'active', 'successful', 'blacklist', 'runty'];
+   for i := 0 to high(colorSets) do
+   begin
+      colArr := multiBetween(allData[0], '<' + colorSets[i] + '>', '</' + colorSets[i] + '>');
+      for j := 0 to high(colArr) do
+      begin
+         cRec := multiBetween(colArr[j], '<colorRecord>', '</colorRecord>');
+         for k := 0 to high(cRec) do
+         begin
+            tmp.color      := StrToIntDef(between('<color>',      '</color>',      cRec[k]), 0);
+            tmp.count      := StrToIntDef(between('<count>',      '</count>',      cRec[k]), 0);
+            tmp.attempts   := StrToIntDef(between('<attempts>',   '</attempts>',   cRec[k]), 0);
+            tmp.matches    := StrToIntDef(between('<matches>',    '</matches>',    cRec[k]), 0);
+            tmp.lastPoints := StrToIntDef(between('<lastPoints>', '</lastPoints>', cRec[k]), 0);
+            tmp.lastObj    := StrToIntDef(between('<lastObj>',    '</lastObj>',    cRec[k]), 0);
+            tmp.maxPoints  := StrToIntDef(between('<maxPoints>',  '</maxPoints>',  cRec[k]), 0);
+            tmp.maxObj     := StrToIntDef(between('<maxObj>',     '</maxObj>',     cRec[k]), 0);
+            tmp.queryTime  := StrToIntDef(between('<queryTime>',  '</queryTime>',  cRec[k]), 0);
+
+            case colorSets[i] of
+               'discovered' : begin; self.discovered.append(tmp); end;
+               'active'     : begin; self.active.append(tmp);     end;
+               'successful' : begin; self.successful.append(tmp); end;
+               'blacklist'  : begin; self.blacklist.append(tmp);  end;
+               'runty'      : begin; self.runty.append(tmp);      end;
+            end;
+         end;
+      end;
+   end;
+   {$IFDEF DEBUG_ON} writeln('***** Tcolorizer.load: Loaded color file [', filePath, ']'); {$ENDIF}
+   result := true;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  save()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tcolorizer.save();
+var
+   s, filePath: string;
+   i, j, fileId: integer;
+   colorSets: TstringArray;
+
+   function colRec(r: TcolRec): string;
+   begin
+      result := result + '    <colorRecord>';
+      result := result + '<color>'      + intToStr(r.color)      + '</color>';
+      result := result + '<count>'      + intToStr(r.count)      + '</count>';
+      result := result + '<attempts>'   + intToStr(r.attempts)   + '</attempts>';
+      result := result + '<matches>'    + intToStr(r.matches)    + '</matches>';
+      result := result + '<lastPoints>' + intToStr(r.lastPoints) + '</lastPoints>';
+      result := result + '<lastObj>'    + intToStr(r.lastObj)    + '</lastObj>';
+      result := result + '<maxPoints>'  + intToStr(r.maxPoints)  + '</maxPoints>';
+      result := result + '<maxObj>'     + intToStr(r.maxObj)     + '</maxObj>';
+      result := result + '<queryTime>'  + intToStr(r.queryTime)  + '</queryTime>';
+      result := result + '</colorRecord>' + #13#10;
+   end;
+
+begin
+   if (__COLSAVETIMER.getTime() < __COLSAVETIMEOUT) then 
+      exit
+   else
+   begin
+      __COLSAVETIMER.reset();
+      __COLSAVETIMER.start();
+   end;
+   
+   s := s + '<colorizer>' + #13#10;
+   s := s + '  <name>'          + self.name                    + '</name>'          + #13#10;
+   s := s + '  <uptext>'        + self.uptext                  + '</uptext>'        + #13#10;
+   s := s + '  <uptextTimeout>' + intToStr(self.uptextTimeout) + '</uptextTimeout>' + #13#10;
+   s := s + '  <tol>'           + intToStr(self.tol)           + '</tol>'           + #13#10;
+   s := s + '  <dist>'          + intToStr(self.dist)          + '</dist>'          + #13#10;
+   s := s + '  <minPixels>'     + intToStr(self.minPixels)     + '</minPixels>'     + #13#10;
+   s := s + '  <maxPixels>'     + intToStr(self.maxPixels)     + '</maxPixels>'     + #13#10;
+
+   colorSets := ['discovered', 'active', 'successful', 'blacklist', 'runty'];
+   for i := 0 to high(colorSets) do
+      case colorSets[i] of
+         'discovered':
+            begin
+               s := s + '  <discovered>' + #13#10;
+               for j := 0 to high(self.discovered) do
+                  s := s + colRec(self.discovered[j]);
+               s := s + '  </discovered>' + #13#10;
+            end;
+         'active':
+            begin
+               s := s + '  <active>' + #13#10;
+               for j := 0 to high(self.active) do
+                  s := s + colRec(self.active[j]);
+               s := s + '  </active>' + #13#10;
+            end;
+         'successful':
+            begin
+               s := s + '  <successful>' + #13#10;
+               for j := 0 to high(self.successful) do
+                  s := s + colRec(self.successful[j]);
+               s := s + '  </successful>' + #13#10;
+            end;
+         'blacklist':
+            begin
+               s := s + '  <blacklist>' + #13#10;
+               for j := 0 to high(self.blacklist) do
+                  s := s + colRec(self.blacklist[j]);
+               s := s + '  </blacklist>' + #13#10;
+            end;
+         'runty':
+            begin
+               s := s + '  <runty>' + #13#10;
+               for j := 0 to high(self.runty) do
+                  s := s + colRec(self.runty[j]);
+               s := s + '  </runty>' + #13#10;
+            end;
+      end;
+
+   s := s + '</colorizer>' + #13#10;
+
+   filePath := self._fpath();
+
+	fileId := RewriteFile(filePath, false);
+	if (fileId = -1) then
+   begin
+   	{$IFDEF DEBUG_ON} writeln('***** Tcolorizer.save: RewriteFile failed [', filePath, ']'); {$ENDIF}
+      exit;
+   end;
+		if (not WriteFileString(fileId, s)) then	
+   begin
+   	{$IFDEF DEBUG_ON} writeln('***** Tcolorizer.save: WriteFileString failed [', filePath, ']'); {$ENDIF}
+		exit;
+	end;
+	CloseFile(fileId);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  init                                                               }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tcolorizer.init(nm: string; ut: string; utt: integer; t: integer;
+   d: integer; minp: integer; maxp: integer);
+begin
+   self.name          := nm;
+   self.uptext        := ut;
+   self.uptextTimeout := utt;
+   self.tol           := t;
+   self.dist          := d;
+   self.minPixels     := minp;
+   self.maxPixels     := maxp;
+//   not resetting lengths of colors on purpose...
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  setName                                                            }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tcolorizer.setName(nm: string);
+begin
+   self.name := nm;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  updateCount                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tcolorizer.updateCount(col: integer; cnt: integer);
+var
+   d, a, s, b, r: integer;
+begin
+   if (col = 0) then exit;  // do not add black
+
+   d := self.discovered.returnInArray(col);
+   a := self.active.returnInArray(col);
+   s := self.successful.returnInArray(col);
+   b := self.blacklist.returnInArray(col);
+   r := self.runty.returnInArray(col);
+
+   if (d+a+s+b+r = -5) then  // this is a new color
+   begin
+      setLength(self.discovered, length(self.discovered) + 1);
+      with self.discovered[high(self.discovered)] do
+      begin
+         color      := col;
+         count      := cnt;
+         attempts   := 0;
+         matches    := 0;
+         lastPoints := 0;
+         lastObj    := 0;
+         maxPoints  := 0;
+         maxObj     := 0;
+         queryTime  := 0;
+      end;
+   end
+   else
+   begin
+      if (d >= 0) then
+         self.discovered[d].count := self.discovered[d].count + cnt;
+      if (a >= 0) then
+         self.active[a].count := self.active[a].count + cnt;
+      if (s >= 0) then
+         self.successful[s].count := self.successful[s].count + cnt;
+      if (b >= 0) then
+         self.blacklist[b].count := self.blacklist[b].count + cnt;
+      if (r >= 0) then
+         self.runty[r].count := self.runty[r].count + cnt;
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  updateTrials                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tcolorizer.updateTrials(col: integer; success: boolean);
+
+var
+   d, a, s, b, r: integer;
+   percent: extended;
+
+begin
+   d := self.discovered.returnInArray(col);
+   a := self.active.returnInArray(col);
+   s := self.successful.returnInArray(col);
+   b := self.blacklist.returnInArray(col);
+   r := self.runty.returnInArray(col);
+
+   if (d+a+s+b+r = -5) then
+   begin
+      writeln('Tcolorizer.updateTrials: ERROR - Asked to update color, ',
+         col, ' - does not exist');
+      exit;
+   end
+
+   if (d >= 0) then
+      with self.discovered[d] do
+      begin
+         inc(attempts);
+         if (success) then 
+         begin
+            inc(matches);
+            // move it to active since it worked
+            self.active.append(self.discovered[d]);
+            self.discovered.deleteIndex(d);
+         end;
+      end;
+
+   if (a >= 0) then
+      with self.active[a] do
+      begin
+         inc(attempts);
+         if (success) then inc(matches);
+         percent := matches / attempts;
+
+         // see if this active color has met criteria for blacklist or success
+         if ((attempts >= ATTEMPT_THRESHOLD) and (percent < SUCCESS_THRESHOLD)) or
+            ((attempts >= 5) and (percent < FAILURE_THRESHOLD)) then
+         begin
+            self.blacklist.append(self.active[a]);   // time to give up on this one
+            self.active.deleteIndex(a);
+         end
+         else if ((matches >= 5) and (percent >=SUCCESS_THRESHOLD)) then
+         begin
+            {$IFDEF DEBUG_ON}
+               writeln('***** Tcolorizer.updateTrials: moving (', self.active[a].color,
+                  ') active -> successful');
+            {$ENDIF}
+            self.successful.append(self.active[a]);
+            self.active.deleteIndex(a);
+            self.save();
+         end;
+      end;
+
+   if (s >= 0) then
+      with self.successful[s] do
+      begin
+         inc(attempts);
+         if (success) then inc(matches);
+      end;
+   if (b >= 0) then
+      with self.blacklist[b] do
+      begin
+         inc(attempts);
+         if (success) then inc(matches);
+      end;
+   if (r >= 0) then
+      with self.runty[r] do
+      begin
+         inc(attempts);
+         if (success) then inc(matches);
+      end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  updatePointCount                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tcolorizer.updatePointCount(col: integer; points: integer;
+   objs: integer; msec: integer);
+
+var
+   d, a, s, b, r: integer;
+
+begin
+   d := self.discovered.returnInArray(col);
+   a := self.active.returnInArray(col);
+   s := self.successful.returnInArray(col);
+   b := self.blacklist.returnInArray(col);
+   r := self.runty.returnInArray(col);
+
+   if (d+a+s+b+r = -5) then
+   begin
+      writeln('***** Tcolorizer.updatePointCount: ERROR - Asked to update color, ',
+         col, ' - does not exist');
+      exit;
+   end;
+
+   if (d >= 0) then
+      with self.discovered[d] do
+      begin
+         lastPoints := points;
+         lastObj := objs;
+         if (points > maxPoints) then maxPoints := points;
+         if (objs > maxObj)      then maxObj    := objs;
+         if (msec > queryTime)   then queryTime := msec;
+         if (msec > BLACKLIST_THRESHOLD) then // move it to the blacklist
+         begin
+            self.blacklist.append(self.discovered[d]);
+            self.discovered.deleteIndex(d);
+         end
+         else if ((objs < 1) and (matches = 0)) then // move it to the runty list
+         begin
+            self.runty.append(self.discovered[d]);
+            self.discovered.deleteIndex(d);
+         end;
+{ leave this until a match happens         
+         else // since it is being used, move it to active
+         begin
+            self.active.append(self.discovered[d]);
+            self.discovered.deleteIndex(d);
+         end;
+}
+      end;
+
+   if (a >= 0) then
+      with self.active[a] do
+      begin
+         lastPoints := points;
+         lastObj := objs;
+         if (points > maxPoints) then maxPoints := points;
+         if (objs > maxObj)      then maxObj    := objs;
+         if (msec > queryTime)   then queryTime := msec;
+         if (msec > BLACKLIST_THRESHOLD) then // move it to the blacklist
+         begin
+            {$IFDEF DEBUG_ON}
+//               writeln('***** Tcolorizer.updatePointCount: moving (', self.active[a].color,
+//                  ') active -> blacklist');
+            {$ENDIF}
+            self.blacklist.append(self.active[a]);
+            self.active.deleteIndex(a);
+         end
+         else if ((objs < 1) and (matches = 0)) then // move it to the runty list
+         begin
+            {$IFDEF DEBUG_ON}
+//               writeln('***** Tcolorizer.updatePointCount: moving (', self.active[a].color,
+//                  ') active -> runty');
+            {$ENDIF}
+            self.runty.append(self.active[a]);
+            self.active.deleteIndex(a);
+         end;
+      end;
+
+   if (s >= 0) then
+      with self.successful[s] do
+      begin
+         lastPoints := points;
+         lastObj := objs;
+         if (points > maxPoints) then maxPoints := points;
+         if (objs > maxObj)      then maxObj    := objs;
+         if (msec > queryTime)   then queryTime := msec;
+         if (msec > BLACKLIST_THRESHOLD) then // move it to the blacklist
+         begin
+            {$IFDEF DEBUG_ON}
+               writeln('***** Tcolorizer.updatePointCount: moving (', self.successful[s].color,
+                  ') successful -> blacklist');
+            {$ENDIF}
+            self.blacklist.append(self.successful[s]);
+            self.successful.deleteIndex(s);
+            self.save();
+         end
+         else if (objs < 1) then // move it to the runty list
+         begin
+//          {$IFDEF DEBUG_ON}
+//             writeln('***** Tcolorizer.updatePointCount: moving (', self.successful[s].color,
+//                ') successful -> runty');
+//          {$ENDIF}
+//          self.runty.append(self.successful[s]);
+//          self.successful.deleteIndex(s);
+         end;
+      end;
+
+   if (b >= 0) then
+      with self.blacklist[b] do
+      begin
+         writeln('***** Tcolorizer.updatePointCount: Warning - Updating blacklisted color (', col, ')');
+         lastPoints := points;
+         lastObj := objs;
+         if (points > maxPoints) then maxPoints := points;
+         if (objs > maxObj)      then maxObj    := objs;
+         if (msec > queryTime)   then queryTime := msec;
+      end;
+
+   if (r >= 0) then
+      with self.runty[r] do
+      begin
+         writeln('***** Tcolorizer.updatePointCount: Warning - Updating runtycolor (', col, ')');
+         lastPoints := points;
+         lastObj := objs;
+         if (points > maxPoints) then maxPoints := points;
+         if (objs > maxObj)      then maxObj    := objs;
+         if (msec > queryTime)   then queryTime := msec;
+         if (msec > BLACKLIST_THRESHOLD) then // move it to the blacklist
+         begin
+            {$IFDEF DEBUG_ON}
+//               writeln('***** Tcolorizer.updatePointCount: moving (', self.runty[r].color,
+//                  ') runty -> blacklist');
+            {$ENDIF}
+            self.blacklist.append(self.runty[r]);
+            self.runty.deleteIndex(r);
+         end
+         else if (objs > 1) then // it started providing matches, move out of runty
+         begin
+            {$IFDEF DEBUG_ON}
+               writeln('***** Tcolorizer.updatePointCount: moving (', self.runty[r].color,
+                  ') runty -> active');
+            {$ENDIF}
+            self.active.append(self.runty[r]);
+            self.runty.deleteIndex(r);
+         end;
+      end;
+
+   self.save();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  delete                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tcolorizer.delete(col: integer);
+
+var
+   d, a, s, b, r: integer;
+
+begin
+   d := self.discovered.returnInArray(col);
+   a := self.active.returnInArray(col);
+   s := self.successful.returnInArray(col);
+   b := self.blacklist.returnInArray(col);
+   r := self.runty.returnInArray(col);
+
+   if (d+a+s+b+r = -5) then
+   begin
+      writeln('Tcolorizer.delete: ERROR - Asked to delete color, ',
+         col, ' - does not exist');
+      exit;
+   end
+
+   {$IFDEF DEBUG_ON} writeln('***** Tcolorizer.delete: deleting (', col, ')'); {$ENDIF}
+
+   if (d >= 0) then self.discovered.delete(col);
+   if (a >= 0) then self.active.delete(col);
+   if (s >= 0) then self.successful.delete(col);
+   if (b >= 0) then self.blacklist.delete(col);
+   if (r >= 0) then self.runty.delete(col);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  cleanupColors                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Weeds down the discovered list.  If this gets too huge it          }
+{  makes everything bog down                                          }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tcolorizer.cleanupColors();
+begin
+   self.discovered.cleanupColors();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  gather                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.gather(var tpa: TPointArray; col: integer): boolean;
+
+var
+   screen: TblBitmap;
+   x, y, idx: integer;
+   timer: TTimeMarker;
+   b: TBox;
+
+begin
+   timer.reset();
+   timer.start();
+   b := [10, 10, 1860, 980];;
+   idx := self.active.returnInArray(col);
+
+{   
+   if ((self.successful.isInArray(col)) or
+      ( (idx>0) and (self.active[idx].attempts > 1) ) ) then
+   begin
+      // it should be a good color, do the fast query that
+      // will hang if given background colors
+      findColorsTolerance(tpa, col, b, self.tol);
+   end
+   else
+   begin 
+      // we need to do it the slow way so we can abort if
+      // it takes too long.
+      setLength(tpa, 0);
+      screen.fromClient(b, 'colgather');
+
+      for x := 0 to screen.w-1 do
+      begin
+         for y := 0 to screen.h-1 do
+            if SimilarColors(col, screen.getPixel(x,y), self.tol) then
+               tpa.append(point(x,y));
+
+         if ((timer.getTime() > BLACKLIST_THRESHOLD) or
+            (length(tpa) > OVERLOAD_MATCHES)) then 
+         begin
+            setLength(tpa, 0);
+            break;
+         end;
+      end;
+      screen.free();      
+   end;
+}   
+   findColorsTolerance(tpa, col, b, self.tol);
+   mainscreen.filterPointsPlayer(tpa);
+   if (length(tpa) > 0) then
+      result := true
+   else
+      result := false;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  gather                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.gather(var atpa: T2DPointArray; c: integer): boolean; overload;
+
+var
+   tpa: TPointArray;
+   timer: TTimeMarker;
+
+begin
+   setLength(tpa, 0);
+   result := true;
+   timer.start();
+   if (not self.gather(tpa, c)) then
+   begin
+      result := false;
+      // no point in updating if it already got blacklisted
+      if (not self.blacklist.isInArray(c)) then
+         self.updatePointCount(c, length(tpa), 0, 9999999);
+      exit;
+   end;
+
+//   atpa := tpa.split(self.dist);
+   atpa := tpa.cluster(self.dist);
+   atpa.filterBetween(0, self.minPixels);
+   atpa.filterBetween(self.maxPixels, maxint);
+   atpa.sortFromFirstPoint(mainscreen.playerPoint);
+
+   if (length(atpa) = 0) then
+      result := false;
+
+   {$IFDEF DEBUG_ON}
+//    writeln('***** Tcolorizer.gather: updating point count [', c, ']');
+   {$ENDIF}
+   self.updatePointCount(c, length(tpa), length(atpa), timer.getTime());
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  sample                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Grabs a sampling of colors around the mouse area                   }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tcolorizer.sample(n: integer = 6);
+
+var
+   i, x, y: integer;
+   b: TBox;
+   colList: TIntegerArray;
+
+begin
+   getMousePos(x,y);
+   b := [x, y, x, y];
+   b.expand(n);
+   if (b.x1 < 0) then b.x1 := 0;
+   if (b.x2 < 0) then b.x2 := 0;
+   if (b.y1 < 0) then b.y1 := 0;
+   if (b.y2 < 0) then b.y2 := 0;
+
+   colList := getColors(b.createTPA());
+
+   for i := 0 to high(colList) do
+      self.updateCount(colList[i], 1);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  deepSample                                                         }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Jiggles the mouse around a good spot to collect more colors        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tcolorizer.deepSample(x: integer; y: integer; n: integer = 6);
+
+var
+   p: TPoint;
+   i: integer;
+   matched: boolean;
+   s: string;
+   t: Int64;
+
+begin
+   // we don't need to add to the burden if we have
+   // some colors to work with already.
+   if (length(self.discovered) > 400) then exit;
+   
+   p.create(x,y);
+   i := 5;
+   matched := true;
+   while (matched) do
+   begin
+      matched := false;
+      mouse(p.rand(i));
+      inc(i);
+
+      t := getSystemTime() + randomRange(uptextTimeout, uptextTimeout+80);
+      repeat
+         wait(20);
+         s := getMouseOverText();
+         if (pos(self.uptext, s) > 0) then
+         begin
+            matched := true;
+            self.sample(n);
+         end
+         else
+            if (s <> '') then  // we got an uptext, but it isnt what we want
+               break;
+      until (matched or (getSystemTime() > t));
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  colorsTotry                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.colorsTotry() : TIntegerArray;
+
+var
+   i, j: integer;
+   closeToBG, bgList: TIntegerArray;
+   
+begin
+  if (length(self.discovered) > CLEANUP_LOW_WATER + 100) then
+     self.cleanupColors(); // might as well try to cut it down
+
+   // put colors close to successful ones first in the list
+   for i := 0 to high(self.discovered) do
+      for j := 0 to high(self.successful) do
+      begin
+         if SimilarColors(self.successful[j].color, self.discovered[i].color, 10) then
+         begin
+            result.append(self.discovered[i].color);
+            break;
+         end;
+      end;
+
+   for i := 0 to high(self.discovered) do
+      if (not result.isInArray(self.discovered[i].color)) then
+         result.append(self.discovered[i].color);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  discoveredColors                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.discoveredColors() : TIntegerArray;
+var
+   i: integer;
+begin
+   setLength(result, 0);
+   self.discovered.sortByCount();
+   for i := 0 to high(self.discovered) do
+      result.append(self.discovered[i].color);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  activeColors                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.activeColors() : TIntegerArray;
+var
+   i: integer;
+begin
+   setLength(result, 0);
+   self.active.sortBySuccess();
+   for i := 0 to high(self.active) do
+      result.append(self.active[i].color);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  successfulColors                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.successfulColors() : TIntegerArray;
+var
+   i: integer;
+begin
+   setLength(result, 0);
+   self.successful.sortBySuccess();
+   for i := 0 to high(self.successful) do
+      result.append(self.successful[i].color);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  multiBox                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Queries mainscreen trying to make object boxes.  If a box can be   }
+{  made with minCol colors that is all that will be gathered.  If no  }
+{  boxes are found, it will add info from more colors up to maxCol    } 
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.multiBox(var colorsUsed: TIntegerArray; 
+   minCol: integer = 1; maxCol: integer = 10) : TboxArray;
+
+var
+   s, pointCount: TIntegerArray;
+   atpa: T2DPointArray;
+   allPoints, tpa: TPointArray;
+   i, atpaLen: integer;
+
+begin
+   if (minCol <= 0) then minCol := 1;
+   if (maxCol <= 0) then maxCol := 1;
+   if (maxCol < minCol) then maxCol := minCol;
+
+   s := self.successfulColors();
+   if (length(s) < 1) then
+   begin
+      writeln('***** Tcolorizer.multiBox: ERROR - NO SUCCESSFUL COLORS');
+      result := [];
+      exit;
+   end;
+
+   setLength(colorsUsed, 0);
+   setLength(pointCount, 0);
+   
+   FREEZE();   // freeze input so all queries against same data
+      i := 0;
+      repeat
+         if (i > length(s)) then break;
+         
+         setLength(tpa, 0);         
+         if self.gather(tpa, s[i]) then
+         begin
+            allPoints.combine(tpa);
+            colorsUsed.append(s[i]);
+            pointCount.append(length(tpa));
+         end;
+         inc(i);
+         if (i >= minCol) then
+         begin
+            allPoints.clearEquals();
+            atpa := allPoints.cluster(self.dist);
+            atpa.filterBetween(0, self.minPixels);
+            atpa.filterBetween(self.maxPixels, maxint);
+            atpaLen := length(atpa);
+         end;
+      until ((i > maxCol) or ((i >= minCol) and (atpaLen >= 1)));
+   UNFREEZE(); 
+ 
+   if (atpaLen < 1) then
+      result := []
+   else
+   begin
+      atpa.sortFromMidPoint(mainscreen.playerpoint);
+      setLength(result, atpaLen);
+      for i := 0 to high(atpa) do
+         result[i] := atpa[i].getBounds();
+   end;
+   
+   // we fake the timer.  its not used on active colors and only 
+   // tracks the worst response for blacklisting.
+   for i := 0 to high(colorsUsed) do
+      self.updatePointCount(colorsUsed[i], pointCount[i], atpaLen, 22);
+   
+   {$IFDEF DEBUG_ON}
+//      writeln('Tcolorizer.multiBox returning ', length(result), ' boxes.  colors=', colorsUsed);
+   {$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  testCol                                                            }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Sees if a color will get us to the desired mousetext               }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.testCol(c: integer; trials: integer = 1): boolean;
+
+var
+   i, t, x, y: integer;
+   s: string;
+   atpa: T2DPointArray;
+   matched: boolean;
+   timer: TTimeMarker;
+
+begin
+   result := false;
+
+   if (not self.gather(atpa, c)) then
+   begin
+      self.updateTrials(c, false);
+      exit;
+   end;
+
+   for i := 0 to high(atpa) do
+   begin
+      if (trials = 0) then
+         break
+      else
+         trials := trials - 1;;
+
+      if (self.successful.isInArray(c)) then break;  // we did our job
+
+      matched := false;
+      timer.start();
+      t := randomVary(uptextTimeout, 80);
+      atpa[i].getBounds().mouse();
+      repeat
+         wait(20);
+         s := getMouseOverText();
+         if (pos(self.uptext, s) > 0) then
+            matched := true
+         else
+            if (s <> '') then  // we got an uptext, but it isnt what we want
+               break;
+      until (matched or (timer.getTime() > t));
+
+      if (matched) then
+      begin
+         case random(50) of
+            0: begin
+                  getMousePos(x,y);
+                  self.deepSample(x,y);
+               end;
+         end;
+         self.updateTrials(c, true);
+         result := true;
+      end
+      else
+         self.updateTrials(c, false);
+   end;
+end;
+   
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  colorize                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Tests colors to try to find new ones that are successful.          }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.colorize(maxTime: integer = 120000;
+   enough: integer= 5): boolean;
+
+var
+   i, j, counter: integer;
+   tia: TIntegerArray;
+   timeout: Int64;
+   statusTimer: TTimeMarker;
+ 
+begin
+   {$IFDEF DEBUG_ON}
+//     writeln('***** Tcolorizer.colorize: Starting.  ',
+//          enough, ' good colors were requested.');
+//     writeln('***** Tcolorizer.colorize: length disc=', length(self.discovered),
+//         ' active=', length(self.active), ' success=', length(self.successful));
+   {$ENDIF}
+   
+   if (length(self.successful) >= enough) then
+   begin
+      result := true;
+      exit;
+   end;
+
+   result := false;
+   counter := 0;
+   timeout := getSystemTime() + maxTime;
+   statusTimer.start();
+   
+   while (getSystemTime() < timeout) do
+   begin
+      if (length(self.discovered) <= 0) then
+      begin
+         writeln('Ran out of discovered colors');
+         exit;
+      end;
+      
+      if (length(self.active) < 5) then
+      begin
+         tia := self.colorsTotry();
+         if (length(tia) < 1) then
+         begin
+            writeln('Ran out of discovered colors');
+            exit;
+         end;
+         for j := 0 to high(tia) do
+            if (self.discovered[self.discovered.returnInArray(tia[j])].attempts = 0) then
+            begin
+               self.testCol(tia[j], 3);
+               break;
+            end;
+      end
+      else
+      begin
+         tia := self.activeColors();
+         if (length(tia) < 1) then
+         begin
+            writeln('Ran out of active colors');
+            exit;
+         end;
+         for i := 0 to min(4, length(tia)) do
+         begin
+            case random(3) of
+               0:    self.testCol(tia[random(length(tia))], 10);
+               else  self.testCol(tia[i], 10);
+            end;
+         end;
+      end;
+      
+      inc(counter);
+      if (counter mod 50) = 0 then
+         writeln('***** Tcolorizer.colorize: tested ', counter, ' colors.');
+         
+      if (length(self.successful) >= enough) then
+      begin
+         {$IFDEF DEBUG_ON}
+            writeln('***** Tcolorizer.colorize: Reached our goal of ',
+               enough, ' good colors.');
+         {$ENDIF}
+         result := true;
+         exit;
+      end;
+      
+      if (statusTimer.getTime() > 5000) then
+      begin
+         statusTimer.reset();
+         statusTimer.start();
+         //statusHUD();
+         OSD.status.update('Testing colors.  Tested=' + inttostr(counter) +
+            ' Good=' + inttostr(length(self.successful)) +
+            ' Active=' + inttostr(length(self.active)) +
+            ' Rejected=' + inttostr(length(self.blacklist)));
+         OSD.refresh();
+      end;
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  detectObj                                                          }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Goes beyond testing and can perform the clicking/menu              }
+{  selection.                                                         }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.detectObj(var x: integer; var y: integer;
+   var menuText: string; b: TBox; mouseButton: integer = MOUSE_MOVE): boolean;
+
+var
+   i, j: integer;
+   s: string;
+   opts: TOptionArray;
+   t: Int64;
+   p: TPoint;
+   matched: boolean;
+
+begin
+   x := 0;
+   y := 0;
+   menuText := '';
+   result := false;
+   matched := false;
+
+   if (mouseButton = MOUSE_NONE) or (mouseButton = MOUSE_MIDDLE) then exit;
+
+   t := getSystemTime()+ randomRange(uptextTimeout, uptextTimeout+80);
+
+   repeat
+      b.mouse();
+      wait(20);
+      s := getMouseOverText();
+      if (pos(self.uptext, s) > 0) then
+      begin
+         menuText := s;
+         matched := true;
+         result := true;
+      end
+      else
+         if (s <> '') then break;  // we got an uptext, but it isnt what we want
+
+   until (matched or (getSystemTime() > t));
+
+   if (matched) then
+   begin
+      getMousePos(x,y);       // save this for a sec
+      case (mouseButton) of
+         MOUSE_LEFT:
+            begin
+               fastClick(MOUSE_LEFT);
+               exit;
+            end;
+         MOUSE_RIGHT, MOUSE_MOVE:
+            begin
+               fastClick(MOUSE_RIGHT);
+               if (mouseButton = MOUSE_RIGHT) then
+               begin
+                  result := chooseoption.select([self.uptext], 100);
+                  exit;
+               end
+               opts := chooseOption.getOptions();
+               chooseOption.close();
+               for j := 0 to high(opts) do
+               begin
+                  if (pos(self.uptext, opts[j].str) > 0) then
+                  begin
+                     menuText := opts[j].str;
+                     break;
+                  end;
+               end;
+               mouse(point(x,y), MOUSE_MOVE);
+            end;
+      end;
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  examineGrid                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Try to detect an object in one of the boxes in grid.               }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.examineGrid(grid: TBoxArray): string;
+var
+   i, x, y: integer;
+   s: string;
+begin
+   result := '';
+   while (length(grid) > 0) do
+   begin
+      i := random(length(grid));
+      if self.detectObj(x, y, s, grid[i]) then
+      begin
+         result := s;
+         break;
+      end;
+      grid.deleteIndex(i);
+      sleep(randomRange(35,70));
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  motionColors                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/12                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.motionColors(): string;
+var
+  i, j: integer;
+  clist: TIntegerArray;  
+begin
+  for i := 1 to 5 do
+  begin
+     writeln();
+     //statusHUD('Gathering colors from motion, pass ' + inttostr(i));
+     OSD.status.update('Gathering colors from motion ... pass [' + toStr(i) + '] of [5]');
+     OSD.refresh();
+     clist := system.motionColors(mainscreen.getBounds(), 1, 90);
+     for j := 0 to high(clist) do
+        self.updateCount(clist[j], 1);
+     sleep(500);
+  end;
+end;      
+      
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  motionDetect                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tcolorizer.motionDetect(): string;
+
+var
+   timer: TTimeMarker;
+   boxlist: TBoxArray;
+
+begin
+   result := '';
+   timer.start()
+
+   while (timer.getTime() < __MOTIONTIMEOUT) and (result = '') do
+   begin
+      boxlist := motionBoxes(mainscreen.getBounds());
+      result := self.examineGrid(boxlist);
+      if (result = 'Attack') then result := ''; 
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  _blColorizerTerminate                                              }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure _blColorizerTerminate();
+begin
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  initializer                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+begin
+   addOnTerminate('_blColorizerTerminate');
+
+   //updater.check4update('blColorizer.simba', blColorizerVersion,
+     //blColorizerVerUrl, blColorizerCodeUrl, true);
+      
+   __COLSAVETIMER.start();
+end;

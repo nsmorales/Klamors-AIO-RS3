@@ -1,0 +1,356 @@
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  blNpc.simba                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once bonsai/blUpdater.simba}
+{$include_once bonsai/blMisc.simba}
+{$include_once bonsai/blColorizer.simba}
+{$f-}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+const
+   blNpcVersion = '1.5';
+   blNpcVerUrl  = 'http://pastebin.com/raw/EmKZzjbF';
+   blNpcCodeUrl = 'http://pastebin.com/raw/9kYFFLAU';
+   __DEFUPTEXTTIMEOUT = 350;
+   __DEFTOLERANCE = 7;
+   __DEFDIST = 10;
+   __DEFMINSIZE = 4;
+   __DEFMAXSIZE = 2000;
+   __MOTIONNUMSUCCESS = 10;
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+type
+   Tnpc = record
+      _name             : string;         // runescape name for npc, is used as a key for lookups
+      _xp               : extended;       // combat xp received when killed
+      _constitutionXp   : extended;       // constitution xp received when killed
+      _colorizer        : Tcolorizer;
+   end;
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  access functions                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Simple functions to give users access to the object data.          }
+{  Users should not beaccessing the internal data directly in         }
+{  case we change it.                                                 }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tnpc.name(): string;
+begin
+   result := _name;
+end;
+
+function Tnpc.xp(): extended;
+begin
+   result := _xp;
+end;
+
+function Tnpc.constitutionXp(): extended;
+begin
+   result := _constitutionXp;
+end;
+
+function Tnpc.uptext(): String;
+begin
+   result := _colorizer.uptext;
+end;
+
+function Tnpc.dist(): integer;
+begin
+   result := _colorizer.dist;
+end;
+
+function Tnpc.minPixels(): integer;
+begin
+   result := _colorizer.minPixels;
+end;
+
+function Tnpc.maxPixels(): integer;
+begin
+   result := _colorizer.maxPixels;
+end;
+
+function Tnpc.colorCount(): integer;
+begin
+   result := length(_colorizer.successful);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  webLookup()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tnpc.webLookup(var xpOut: extended; var cXpOut: extended): boolean;
+var
+  JSONNameSearch, JSONIDSearch, NPCID, XPString: string;
+begin
+   xpOut  := 1;
+   cXpOut := 1;
+   result := false;
+
+   // Courtesy of Clarity -- you rock!
+  JSONNameSearch := getPage('http://services.runescape.com/m=itemdb_rs/bestiary/beastSearch.json?term=' + _name);
+  NPCID := between('"value":', ',"label"', JSONNameSearch);
+  JSONIDSearch := getPage('http://services.runescape.com/m=itemdb_rs/bestiary/beastData.json?beastid=' + NPCID);
+  XPString := between('"xp":"','","size"', JSONIDSearch);
+
+  xpOut := strToFloatDef(XPString, 1.0);
+  cXpOut := (xpOut / 3);
+  result := true; 
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  motionDetect()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Finds NPCs based on screen movement (pixel shift).  Improves       }
+{  color knowledge until we have at least 5 successful colors to use. }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tnpc.motionDetect(): string;
+
+var
+   s: string;
+   timer: TTimeMarker;
+
+   {¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+   {  strToNpc()                                                    }
+   {  Written by: bonsai                                            }
+   {  Date Last Modified: 2014/08                                   }
+   {                                                                }
+   {  Tries to turn a menu string like "Attack NPC NAME (level XX)" }
+   {  into just the NPC NAME                                        }
+   {¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+   function strToNpc(s: string): string;
+   var
+      sa, sa2: TStringArray;
+      i: integer;
+   begin
+      // Returns the NPC name from strings like
+      // "Attack NPC NAME (level XX)"
+      // "Attack *NPC NAME (level XX)"
+      sa := explode(' ', s);
+      if (length(sa) <= 1) then 
+         exit;
+
+      if (sa[0] = '') then 
+         sa.deleteIndex(0);   // in case of " Attack XXX"
+
+      if (sa[0] <> 'Attack') then 
+         exit;   // malformed
+
+      if (pos('*', sa[1]) > 0) then   // In case of "*Npcname"
+      begin
+         sa2 := explode('*', sa[1]);
+         sa[1] := sa2[1];
+      end
+      result := sa[1];
+
+      for i := 2 to high(sa) do
+      begin
+         if (pos('(', sa[i]) > 0) then break;
+         result := result + ' ' + sa[i];
+      end;
+   end;
+
+begin
+   {$IFDEF DEBUG_ON} 
+      writeln('***** Tnpc.motionDetect: Starting ... '); 
+   {$ENDIF}
+   timer.start();
+   s := '';
+   statusHUD('Attempting motion detection');   
+   while (timer.getTime() < 120000) and (s = '') do
+   begin
+      s := _colorizer.motionDetect();
+   end;
+   result := strToNpc(s);
+end;
+
+
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  equals()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+// Function to compare one NPC object to another.  Perhaps it's not solid
+// but only the name field is checked.  var is used even though compareTo
+// is not changed.  This is due to wierd lape violation errors when passing
+// records around.
+
+function Tnpc.equals(var compareTo: Tnpc): boolean;
+begin
+   result := (_name = compareTo.name());
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  angleTowards()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Splits the minimap into quadrants and changes our view             }
+{  to the quadrant with the most NPCs in it                           }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tnpc.angleTowards()
+
+var
+   b: TBox;
+   c: TPoint;
+   quadrant: array[0..3] of TBox;
+   dotCount: TPointArray;
+   i, longest, longestQ, angl: integer;
+
+begin
+   b := minimap.getBounds();
+   c := minimap.getCenterPoint();
+   // NE, SE, SW, NW
+   quadrant[0] := IntToBox(c.x,  b.y1, b.x2, c.y);
+   quadrant[1] := IntToBox(c.x,  c.y,  b.x2, b.y2);
+   quadrant[2] := IntToBox(b.x1, c.y,  c.x,  b.y2);
+   quadrant[3] := IntToBox(b.x1, b.y1, c.x,  c.y);
+   longest := -1;
+   for i := 0 to 3 do
+   begin
+      dotCount := minimap.getDots(MM_DOT_NPC, quadrant[i]);
+      if (length(dotCount) > longest) then
+      begin
+         longestQ := i;
+         longest := length(dotCount);
+      end;
+   end;
+   angl := trunc(minimap.getAngleDegrees()) + (45*((longestQ*2)+1));
+   if (angl > 360) then
+      angl := angl - 360;
+   {$IFDEF DEBUG_ON} writeln('***** Tnpc.angleTowards: Altering angle to ', angl); {$ENDIF}
+   //minimap.setAngle(trunc(angl));
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  moveToClosest()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Clicks on the closest yellow dot on the minimap in an attempt to   }
+{  get us back in view of an npc to fight.  It's possible for it to   }
+{  click on something unrelated and make things worse :)              }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tnpc.moveToClosest()
+
+var
+   yellowDots: TPointArray;
+
+begin
+   yellowDots := minimap.getDots(MM_DOT_NPC, minimap.getBounds());
+   if (length(yellowDots) = 0) then exit;
+   yellowDots.sortFromPoint(minimap.getBounds().getMiddle());
+   mouse(yellowDots[0], MOUSE_LEFT);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  colorize()                                                         }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Tests new and in progress colors to try to find new ones that      }
+{  are successful.                                                    }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tnpc.colorize(maxTime: integer = 120000; enough: integer): boolean;
+begin
+   result := _colorizer.colorize(maxTime, enough);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  init()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/12                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tnpc.init(npcName: string): boolean;
+
+var
+   i: integer;
+
+begin
+  result := false;
+  if (_name <> '') then
+  begin
+    {$IFDEF DEBUG_ON}
+      writeln('***** Tnpc.init: Rejected attempt to reinit [', npcName, ']');
+    {$ENDIF}
+    exit;
+  end;
+
+  if (lowercase(npcName) = 'motiondetect') then
+  begin
+    _name := npcName;
+    _xp := _constitutionXp := 1; // not tracking for now
+    exit(true);
+  end;
+
+  _colorizer.init(npcName, 'Attack', __DEFUPTEXTTIMEOUT, 
+      __DEFTOLERANCE, __DEFDIST, __DEFMINSIZE, __DEFMAXSIZE);
+
+  if (lowercase(npcName) = 'autodetect') then
+  begin
+    {$IFDEF DEBUG_ON} writeln('***** Tnpc.init: Starting auto detect process'); {$ENDIF}
+    statusHUD('Starting auto detection process');
+    
+    _name := motionDetect();
+    if (_name <> '') then
+    begin
+      {$IFDEF DEBUG_ON} writeln('***** Tnpc.init: Detected ', _name); {$ENDIF}
+      statusHUD('Detected [' + _name + ']');
+    end
+    else
+      exit(false);
+  end
+  else
+    _name := npcName;
+
+  _colorizer.name := _name;  
+  webLookup(_xp, _constitutionXp);
+
+  if not _colorizer.load() then
+    _colorizer.motionColors();
+
+  if (colorCount() < __MOTIONNUMSUCCESS) then
+  begin
+    {$IFDEF DEBUG_ON} writeln('***** Tnpc.init: Trying to identify more colors'); {$ENDIF}
+    statusHUD('Trying to identify more colors.  We have ' + inttostr(colorCount()) + 
+              ', we need ' + inttostr(__MOTIONNUMSUCCESS));
+    colorize(240000, __MOTIONNUMSUCCESS);
+  end;  
+
+  if (_name <> '') then
+  result := true;
+end;
+
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __blNpcTerminate()                                                 }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure __blNpcTerminate();
+begin
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  initializer                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+begin
+   addOnTerminate('__blNpcTerminate');
+
+   updater.check4update('blNpc.simba', blNpcVersion,
+      blNpcVerUrl, blNpcCodeUrl, true);
+end;

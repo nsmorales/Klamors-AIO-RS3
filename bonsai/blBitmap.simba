@@ -1,0 +1,986 @@
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  blBitmap.simba                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{$include_once bonsai/blUpdater.simba}
+{$include_once NAS/NAS.simba}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+const
+   blBitmapVersion = '1.4';
+   blBitmapVerUrl  = 'http://pastebin.com/raw/vCjqmgpy';
+   blBitmapCodeUrl = 'http://pastebin.com/raw/RwkfJn1C';
+   
+   __DIFFOVERLOAD = 30000;  // if we get this many matches we quit instead of bogging
+   
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+type
+   TblBitmap = record
+      w           : integer;
+      h           : integer;
+      key         : integer;
+      initialized : boolean;
+      name        : string;
+      oldTarget   : integer;
+   end;
+
+   TblBitmapFilter = (BL_ROTATE, BL_DESATURATE, BL_GREYSCALE,
+      BL_BRIGHTNESS, BL_CONTRAST, BL_POSTERIZE, BL_MIRROR);
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+
+var
+   __blBmpList: TIntegerArray;
+   // ^^ this array keeps track of all bitmaps we instantiate
+   // so we can ensure freeing at termination time.
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  setAsTarget()                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.setAsTarget();
+begin
+   if (not self.initialized) then exit;
+
+   self.oldTarget := getImageTarget();
+   setTargetBitmap(self.key);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  releaseTarget()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.releaseTarget();
+var
+   t: integer;
+begin
+   if (not self.initialized) then exit;
+   
+    t := getImageTarget();
+    setImageTarget(self.oldTarget);
+    freeTarget(t);
+end;
+ 
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  setName()                                                          }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.setName(const _name: string);
+begin
+   self.name := _name;
+   if (self.initialized) then
+      SetBitmapName(self.key, _name);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __init()                                                           }
+{  Written by: bonsai                                                 }
+{Date Last Modified: 2014/09                                          }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.__init(const width: integer;
+   const height: integer; const _name: string = '');
+begin
+   __blBmpList.append(self.key);
+   self.w := width;
+   self.h := height;
+   self.oldTarget := -1;
+   self.initialized := true;
+   if (_name <> '') then
+      self.setName(_name);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  free()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.free();
+begin
+   if (self.initialized) then
+   begin
+      // need to check in case our terminator runs
+      // first then someone else tries to free their bitmaps.
+      if BitmapExists(self.key) then
+         FreeBitmap(self.key);
+
+      __blBmpList.deleteIndex(__blBmpList.returnInArray(self.key));
+      self.w := self.h := self.key := 0;
+      self.initialized := false;
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  filter()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Runs a bitmap through one of the filters like contrast             }
+{  The bitmap (self) is altered and the original lost.                }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.filter(filt: TblBitmapFilter;
+   args: array of string = []);
+
+var
+   filtered, width, height, intArg1: integer;
+   nm: string;
+   extArg1: extended;
+   
+begin
+   case filt of
+      TblBitmapFilter.BL_ROTATE:
+         begin
+            extArg1 := strtofloat(args[0]);
+            filtered := RotateBitmap(self.key, extArg1);
+         end;
+      TblBitmapFilter.BL_CONTRAST:
+         begin
+            extArg1 := strtofloat(args[0]);
+            filtered := ContrastBitmap(self.key, extArg1);
+         end;
+      TblBitmapFilter.BL_BRIGHTNESS:
+         begin
+            intArg1 := strtoint(args[0]);
+            filtered := BrightnessBitmap(self.key, intArg1);
+         end;
+      TblBitmapFilter.BL_POSTERIZE:
+         begin
+            intArg1 := strtoint(args[0]);
+            filtered := PosterizeBitmap(self.key, intArg1);
+         end;
+      TblBitmapFilter.BL_DESATURATE:
+         filtered := Desaturate(self.key);
+      TblBitmapFilter.BL_GREYSCALE:
+         filtered := GreyScaleBitmap(self.key);
+      TblBitmapFilter.BL_MIRROR:
+         filtered := CreateMirroredBitmap(self.key);
+   end;
+
+   width := self.w;
+   height := self.h;
+   nm := self.name;
+   self.free();
+   self.key := filtered;
+   self.__init(width, height, nm);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  rotate()                                                           }
+{  Written by: bonsai                                                 }
+{Date Last Modified: 2014/09                                          }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.rotate(angle: extended);
+begin
+   self.filter(TblBitmapFilter.BL_ROTATE, [floattostr(angle)]);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  contrast()                                                         }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.contrast(co: extended);
+begin
+   self.filter(TblBitmapFilter.BL_CONTRAST, [floattostr(co)]);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  brightness()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.brightness(br: integer);
+begin
+   self.filter(TblBitmapFilter.BL_BRIGHTNESS, [inttostr(br)]);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  posterize()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.posterize(po: integer);
+begin
+   self.filter(TblBitmapFilter.BL_POSTERIZE, [inttostr(po)]);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  desaturate()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.desaturate();
+begin
+   self.filter(TblBitmapFilter.BL_DESATURATE);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  greyscale()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.greyscale();
+begin
+   self.filter(TblBitmapFilter.BL_GREYSCALE);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  invert()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.invert();
+begin
+   if (not self.initialized) then exit;
+   InvertBitmap(self.key);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  mirror()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.mirror(nm: string = ''): TblBitmap;
+begin
+   self.filter(TblBitmapFilter.BL_MIRROR);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  draw()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Four flavors                                                       }
+{     1.  Draws a bitmap to a TCanvas                                 }
+{     2.  Draws a bitmap to another bitmap                            }
+{     3.  Draws a bitmap to the debug window                          }
+{     4.  Draws a bitmap to the SMART window                          }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.draw(dest: TCanvas; x, y: integer);
+begin
+   if (not self.initialized) then exit;
+   DrawBitmap(self.key, dest, x, y);
+end;
+
+procedure TblBitmap.draw(dest: TblBitmap; x, y: integer); overload;
+begin
+   if (not self.initialized) then exit;
+   FastDrawTransparent(x, y, self.key, dest.key);
+end;
+
+procedure TblBitmap.draw(); overload;
+begin
+   if (not self.initialized) then exit;
+   DisplayDebugImgWindow(self.w, self.h);
+   DrawBitmapDebugImg(self.key);
+end;
+
+procedure TblBitmap.draw(x, y: integer); overload;
+begin
+   if (not self.initialized) then exit;
+   {$IFDEF NAS_DRAWING}
+   NAS.Drawing.drawBitmap(self.key, point(x, y));
+   {$ENDIF}
+end;
+
+procedure TblBitmap.draw(p: TPoint); overload;
+begin
+   if (not self.initialized) then exit;
+   {$IFDEF NAS_DRAWING}
+   NAS.Drawing.drawBitmap(self.key, p);
+   {$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  getPixel()                                                         }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.getPixel(x: integer; y: integer): LongWord;
+begin
+   if (not self.initialized) then exit;
+   result := FastGetPixel(self.key, x, y);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  getPixels()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.getPixels(tpa: TPointArray):TIntegerArray;
+begin
+   if (not self.initialized) then exit;
+   result := FastGetPixels(self.key, tpa);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  getAllPixels()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.getAllPixels(): TIntegerArray;
+var
+   i, j, c: integer;
+begin
+   if (not self.initialized) then exit;
+   for i := 0 to self.w-1 do
+      for j := 0 to self.h-1 do
+      begin
+         c := self.getPixel(i, j)
+         if (not result.isInArray(c)) then
+            result.append(c);
+      end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  getAreaColors()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.getAreaColors(x1, y1, x2, y2: integer): T2DIntArray;
+begin
+   if (not self.initialized) then exit;
+   result := GetBitmapAreaColors(self.key, x1, y1, x2, y2);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  findColor()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.findColor(c: integer): TPointArray;
+begin
+   if (not self.initialized)then exit;
+   if (c < 0) then exit;
+   if not FindColorsBitmap(self.key, result, c) then
+      writeln('FindColorsBitmap returned an error');
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{                                                                     }
+{  replaceColor()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.replaceColor(old, new: integer): TPointArray;
+begin
+   if (not self.initialized) then exit;
+   FastReplaceColor(self.key, old, new);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  setAllPixels()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.setAllPixels(c: TColor);
+begin
+   if (not self.initialized) then exit;
+   FastDrawClear(self.key, c);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  setPixel()                                                         }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.setPixel(x: integer; y: integer; c: TColor);
+begin
+   if (not self.initialized) then exit;
+   FastSetPixel(self.key, x, y, c);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  setPixels()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.setPixels(tpa: TPointArray; c: Integer);
+begin
+   if (not self.initialized) then exit;
+   DrawTPABitmap(self.key, tpa, c);
+end;
+
+// takes array of colors so each can be different
+procedure TblBitmap.setPixels(tpa: TPointArray; cList: TIntegerArray); overload;
+begin
+   if (not self.initialized) then exit;
+
+   if (length(tpa) = length(cList)) then
+      FastSetPixels(self.key, tpa, cList)
+   else if (length(cList) = 1) then
+      DrawTPABitmap(self.key, tpa, cList[0])
+   else
+      writeln('Error: TblBitmap.setPixels bad input len tpa=',
+         length(tpa), ' len cList=', length(cList));
+end;
+
+// set them from another bitmap
+procedure TblBitmap.setPixels(source: TblBitmap; x, y:integer); overload;
+begin
+   if (not self.initialized) then exit;
+   FastDrawTransparent(x, y, source.key, self.key);
+end;
+
+// specific fast version for atpa and color list
+procedure TblBitmap.setPixels(atpa: T2DPointArray; cList: TIntegerArray); overload;
+begin
+   if (not self.initialized) then exit;
+   DrawATPABitmapEx(self.key, atpa, cList);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  setFromClient()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.setFromClient(x1, y1, x2, y2: integer);
+begin
+   if (not self.initialized) then exit;
+   CopyClientToBitmap(self.key, x1, y1, x2, y2);
+end;
+
+procedure TblBitmap.setFromClient(b: TBox); overload;
+begin
+   if (not self.initialized) then exit;
+   // check size
+   self.setFromClient(b.x1, b.y1, b.x2, b.y2);
+end;
+
+procedure TblBitmap.setFromClient(); overload;
+var 
+   width, height: integer;
+begin
+   if (not self.initialized) then exit;
+   GetClientDimensions(width, height);
+   self.setFromClient(0, 0, width-1, height-1);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  drawSystemText()                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.drawSystemText(const text, fontname: string;
+   const fontsize: integer; const point: TPoint; const shadow: boolean;
+   const color: integer);
+begin
+   if (not self.initialized) then exit;
+   DrawSystemTextBitmap(self.key, text, fontname, fontsize, point, shadow, color);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  setTransparentColor()                                              }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.setTransparentColor(c: TColor);
+begin
+   if (not self.initialized) then exit;
+   System.SetTransparentColor(self.key, c);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  getTransparentColor()                                              }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.getTransparentColor(): TColor;
+begin
+   if (not self.initialized) then exit;
+   result := System.GetTransparentColor(self.key);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  toStr()                                                            }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.toStr(): string;
+begin
+   if (self.initialized) then
+      result := CreateBitmapString(self.key);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  toMufasaBitmap()                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.toMufasaBitmap(): TMufasaBitmap;
+begin
+   if (self.initialized) then
+      result := GetMufasaBitmap(self.key);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  save()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.save(path: string);
+begin
+   if (self.initialized) then
+      SaveBitmap(self.key, path);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  find()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.find(var x, y: integer): boolean;
+begin
+   if (self.initialized) then
+      result := FindBitmap(self.key, x, y);
+end;
+
+// w tolerance, coord version
+function TblBitmap.find(var x, y: integer; x1, y1, x2, y2: integer;
+   tol: integer = 0): boolean; overload;
+begin
+   if (not self.initialized) then exit;
+   if (tol = 0) then
+      result := FindBitmapIn(self.key, x, y, x1, y1, x2, y2)
+   else
+      result := FindBitmapToleranceIn(self.key, x, y, x1, y1, x2, y2, tol)
+end;
+
+// w tolerance, box version
+function TblBitmap.find(var x, y: integer; b: TBox;
+   tol: integer = 0): boolean; overload;
+begin
+   if (not self.initialized) then exit;
+   result := self.find(x, y, b.x1, b.y1, b.x2, b.y2, tol);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  findSpiral()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.findSpiral(var x, y: integer;
+   x1, y1, x2, y2: integer; tol: integer = 0): boolean;
+begin
+   if (not self.initialized) then exit;
+   if (tol = 0) then
+      result := FindBitmapSpiral(self.key, x, y, x1, y1, x2, y2)
+   else
+      result := FindBitmapSpiralTolerance(self.key, x, y, x1, y1, x2, y2, tol)
+end;
+
+// box version
+function TblBitmap.findSpiral(var x, y: integer; b: TBox;
+   tol: integer = 0): boolean; overload;
+begin
+   if (not self.initialized) then exit;
+   result := self.findSpiral(x, y, b.x1, b.y1, b.x2, b.y2, tol)
+end;
+
+// coord version w/ tpa returned
+function TblBitmap.findSpiral(x, y: integer; var points: TPointArray;
+   x1, y1, x2, y2: integer; tol: integer = 0): boolean; overload;
+begin
+   if (not self.initialized) then exit;
+   result := FindBitmapsSpiralTolerance(self.key, x, y, points, x1, y1, x2, y2, tol)
+end;
+
+// box version w/ tpa returned
+function TblBitmap.findSpiral(x, y: integer; var points: TPointArray;
+   b: TBox; tol: integer = 0): boolean; overload;
+begin
+   if (not self.initialized) then exit;
+   result := self.findSpiral(x, y, points, b.x1, b.y1, b.x2, b.y2, tol)
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  resize()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.resize(width: integer; height: integer;
+   stretch: boolean = false): boolean;begin
+   if (not self.initialized) then
+      exit;
+
+   if (stretch) then
+      StretchBitmapResize(self.key, width, height)
+   else
+      SetBitmapSize(self.key, width, height);
+
+   self.w := width;
+   self.h := height;
+   result := true;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  resize()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.resize(method: TBmpResizeMethod; width: integer;
+   height: integer): boolean; overload;
+begin
+   if (not self.initialized) then
+      exit;
+
+   ResizeBitmapEx(self.key, method, width, height);
+
+   self.w := width;
+   self.h := height;
+   result := true;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  diff()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.diff(compareTo: TblBitmap; n: integer = 1;
+   c: integer = 255): TblBitmap;
+var
+   i, j, old, new, diffCount: integer;
+begin
+   if ((not self.initialized) or (not compareTo.initialized) or
+      (self.w <> compareTo.w) or (self.h <> compareTo.h))    then
+      exit;
+      
+   if (n < 1) then n := 1;
+   
+   result.create(self.w, self.h);
+   
+   for i := 0 to self.w-1 with n do
+      for j := 0 to self.h-1 with n do
+      begin
+         old := self.getPixel(i, j);
+         new := compareTo.getPixel(i, j);
+         if (old <> new) then
+         begin
+            inc(diffCount);
+            if (diffCount > __DIFFOVERLOAD) then
+            begin
+               writeln('TblBitmap.diff(): OVERLOAD.  More than ', __DIFFOVERLOAD, ' matches.');
+               break(2);
+            end;
+            if (c = 0) then
+               result.setPixel(i, j, old)
+            else if (c = -1) then
+               result.setPixel(i, j, new)
+            else
+               result.setPixel(i, j, c);
+         end;
+      end;
+end;
+
+{=====================================================================}
+{                      TMufasaBitmap wrappers                         }
+{=====================================================================}
+
+procedure TblBitmap.clear();
+begin
+   NAS.Drawing.clear();
+end;
+
+procedure TblBitmap.clearArea(area: TBox);
+begin
+   NAS.Drawing.clearArea(area);
+end;
+
+procedure TblBitmap.drawBox(box: TBox; fill: boolean; color: TColor);
+begin
+   NAS.Drawing.drawBox(box, fill, color);
+end;
+
+procedure TblBitmap.drawBox(box: TBox; color: TColor); overload;
+begin
+   NAS.Drawing.drawBox(box, color);
+end;
+
+procedure TblBitmap.drawBox(x1, y1, x2, y2: integer; fill: boolean; color: TColor); overload;
+begin
+   NAS.Drawing.drawBox(x1, y1, x2, y2, fill, color);
+end;
+
+procedure TblBitmap.drawClippedBox(box: TBox; fill: boolean; color: TColor);
+begin
+   NAS.Drawing.drawClippedBox(box, fill, color);
+end;
+
+procedure TblBitmap.drawBoxes(boxArr: TBoxArray; fill: boolean; color: TColor);
+begin
+   NAS.Drawing.drawBoxes(boxArr, fill, color);
+end;
+
+procedure TblBitmap.drawBoxes(boxArr: TBoxArray; fill: boolean; colors: TColorArray); overload;
+begin
+   NAS.Drawing.drawBoxes(boxArr, fill, colors);
+end;
+
+procedure TblBitmap.drawRoundBox(const box: TBox; const roundness: integer; const fill: boolean; const color: TColor);
+begin
+   NAS.Drawing.drawRoundBox(box, roundness, fill, color);
+end;
+
+procedure TblBitmap.drawBitmap(bmp: integer; pnt: TPoint);
+begin
+   NAS.Drawing.drawBitmap(bmp, pnt);
+end;
+
+function  TblBitmap.drawBitmap(path: string; pnt: TPoint): boolean; overload;
+begin
+   result := NAS.Drawing.drawBitmap(path, pnt);
+end;
+
+procedure TblBitmap.drawCross(pnt: TPoint; size: integer; color: TColor);
+begin
+   NAS.Drawing.drawCross(pnt, size, color);
+end;
+
+procedure TblBitmap.drawEllipse(const pnt: TPoint; const xRadius, yRadius: integer; const fill: boolean; const color: TColor);
+begin
+   NAS.Drawing.drawEllipse(pnt, xRadius, yRadius, fill, color);
+end;
+
+procedure TblBitmap.drawCircle(pnt: TPoint; radius: integer; fill: boolean; color: TColor);
+begin
+   NAS.Drawing.drawCircle(pnt, radius, fill, color);
+end;
+
+procedure TblBitmap.drawPolygon(polygonPnts: TPointArray; color: TColor);
+begin
+   NAS.Drawing.drawPolygon(polygonPnts, color);
+end;
+
+procedure TblBitmap.drawText(txt: string; pnt: TPoint; font: string; shadow: boolean; color: TColor);
+begin
+   NAS.Drawing.drawText(txt, pnt, font, shadow, color);
+end;
+
+procedure TblBitmap.drawText(txt: string; pnt: TPoint; color: TColor); overload;
+begin
+   NAS.Drawing.drawText(txt, pnt, color);
+end;
+
+procedure TblBitmap.drawClippedText(txt: string; pnt: TPoint; font: string; shadow: boolean; color: TColor);
+begin
+   NAS.Drawing.drawClippedText(txt, pnt, font, shadow, color);
+end;
+
+procedure TblBitmap.drawTextArray(txtArr: TStringArray; pnts: TPointArray; font: string; shadow: boolean; color: TColor);
+begin
+   NAS.Drawing.drawTextArray(txtArr, pnts, font, shadow, color);
+end;
+
+procedure TblBitmap.drawTextLines(txtArr: TStringArray; pnt: TPoint; font: string; shadow: boolean; color: TColor);
+begin
+   NAS.Drawing.drawTextLines(txtArr, pnt, font, shadow, color);
+end;
+{
+procedure TblBitmap.drawSystemFont(txt: string; pnt: TPoint; shadow: boolean; fontName: string; fontSize: integer; color: TColor);
+begin
+   self.toMufasaBitmap().drawSystemFont(txt, pnt, shadow, fontName, fontSize, color);
+end;
+}
+procedure TblBitmap.debug();
+begin
+   NAS.Drawing.debug();
+end;
+
+procedure TblBitmap.debugTPA(tpa: TPointArray; drawPoints: boolean = true);
+begin
+   NAS.Drawing.debugTPA(tpa, drawPoints);
+end;
+
+procedure TblBitmap.debugATPA(const atpa: T2DPointArray);
+begin
+   NAS.Drawing.debugATPA(atpa);
+end;
+
+procedure TblBitmap.debugDTM(dtm: integer; area: TBox; color: TColor);
+begin
+   NAS.Drawing.debugDTM(dtm, area, color);
+end;
+
+{=====================================================================}
+{                          CREATORS                                   }
+{=====================================================================}
+
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  copy()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.copy(nm: string = ''): TblBitmap;
+begin
+   if (not self.initialized) then exit;
+   
+   result.w:= self.w;
+   result.h := self.h;
+
+   if (nm = '') then
+      result.name := self.name
+   else
+      result.name := nm;
+
+   result.key  := CopyBitmap(self.key);
+   __blBmpList.append(result.key);
+   result.initialized := true;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  mirrorEx()                                                         }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.mirrorEx(style: TBmpMirrorStyle;
+   nm: string = ''): TblBitmap; overload;
+   
+begin
+   if (self.initialized) then
+      self.free();
+
+   result.key := CreateMirroredBitmapEx(self.key, style);
+   result.__init(self.w, self.h, nm);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  fromStr()                                                          }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TblBitmap.fromStr(width: integer;
+   height: integer; s: string; nm: string = ''): boolean;
+   
+begin
+   if (self.initialized) then
+      self.free();
+
+   self.key := BitmapFromString(width, height, s);
+   self.__init(width, height, nm);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  fromBwMask()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.fromBwMask(bmp: TblBitmap; bg, fg: integer;
+   nm: string = '');
+   
+begin
+   if (not bmp.initialized) then exit;
+   
+   if (self.initialized) then
+      self.free();
+
+   if (fg = 0) then fg := 1;
+   if (bg = 0) then bg := 1;
+   if (fg = bg) then
+   begin
+      writeln('TblBitmap.fromBwMask: Error - asked to paint bitmap with same fg/bg');
+      fg = clWhite;
+      bg = 1;
+   end;
+
+   self := bmp.copy(nm);
+
+   if (bg = clWhite) then // thats a problem we cant overwrite the fg
+      self.replaceColor(clBlack, clRed)
+   else
+      self.replaceColor(clBlack, bg);
+
+   self.replaceColor(clWhite, fg);
+
+   if (bg = clWhite) then // fix the red
+      self.replaceColor(clRed, bg);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  fromClient()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.fromClient(x1, y1, x2, y2: integer; nm: string = '');
+begin
+   if (self.initialized) then
+      self.free();
+
+   self.key := bitmapFromClient(x1, y1, x2, y2);
+   GetBitmapSize(self.key, self.w, self.h);
+   self.__init(self.w, self.h, nm);
+end;
+
+procedure TblBitmap.fromClient(b: TBox; nm: string = ''); overload;
+begin
+   if (self.initialized) then
+      self.free();
+
+   self.key := bitmapFromClient(b.x1, b.y1, b.x2, b.y2);
+   GetBitmapSize(self.key, self.w, self.h);
+   self.__init(self.w, self.h, nm);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  create()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.create(width, height: integer; nm: string = '');
+begin
+   if (self.initialized) then
+      self.free();
+
+   self.key := CreateBitmap(width, height);
+   self.__init(width, height, nm);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  load()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TblBitmap.load(path: string; nm: string = '');
+var
+   width, height: integer;
+begin
+   if (self.initialized) then
+      self.free();
+
+   self.key := LoadBitmap(path);
+   GetBitmapSize(self.key, width, height);
+   self.__init(width, height, nm);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __blBmpTerminate()                                                 }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure __blBmpTerminate();
+var
+   i: integer;
+begin
+   for i := 0 to high(__blBmpList) do
+      freeBitmap(__blBmpList[i]);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  initializer                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+begin
+   updater.check4update('blBitmap.simba', blBitmapVersion,
+      blBitmapVerUrl, blBitmapCodeUrl, true);
+
+   addOnTerminate('__blBmpTerminate');
+end;

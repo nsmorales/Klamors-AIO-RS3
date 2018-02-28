@@ -1,0 +1,692 @@
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  blTracker.simba                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{$IFDEF TESTMAIN}
+program blTrackerTest;
+{$ENDIF}
+
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$IFNDEF TESTMAIN}
+{$include_once bonsai/blMisc.simba}
+{$include_once bonsai/blUpdater.simba}
+{$ENDIF}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+const
+   blTrackerVersion = '1.0';
+   blTrackerVerUrl  = 'http://pastebin.com/raw/SZHtuAj1';
+   blTrackerCodeUrl = 'http://pastebin.com/raw/Fm7xWtHe';
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+type
+   TTrackableType = (TTTint64, TTTinteger, TTTextended, TTTString);
+
+   // multipliers are applied to other stats.  If the stat was
+   // number of rocks mined the multiplier could be XP per
+   // rock.  When it prints it multiplies it to get the
+   // accumulated XP.
+   //
+   TTrackableMultiplier = record
+      multName:   string;
+      doHourly:   boolean;
+      val:        extended;
+   end;
+
+   TTrackableItem = record
+      i64Ptr:        ^int64;
+      i64Initial:    int64;
+      iPtr:          ^integer;
+      iInitial:      integer;
+      ePtr:          ^extended;
+      eInitial:      extended;
+      sPtr:          ^string;
+      itemName:      string;
+      datatype:      TTrackableType;
+      doHourly:      boolean;
+      multipliers:   array of TTrackableMultiplier;
+   end;
+
+   TTrackableCollection = record
+      collName:   string;
+      items:      array of TTrackableItem;
+   end;
+
+   TTracker = record
+      // define some static areas to hand out pointers from.  You can't
+      // use dynamic arrays; resizing will shuffle things
+      // around in memory.
+      __int64Len, __intLen, __extLen, __strLen: integer;
+      __int64List:   array[0..49] of int64;
+      __intList:     array[0..49] of integer;
+      __extList:     array[0..49] of extended;
+      __strList:     array[0..49] of string;
+      trackerName:   string;
+      header:        TStringArray;
+      timer:         TTimeMarker;
+      sections:      array of TTrackableCollection;
+   end;
+
+   TTrackerStyle = (TRACKER_WAVY, TRACKER_UNDERLINE, TRACKER_DASH, TRACKER_EQUALS,
+      TRACKER_SLASH, TRACKER_SWORD, TRACKER_FISH);
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+var
+   tracker: TTracker;
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __blTenStr()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Create a string of ten characters in the desired style             }
+{  line art from http://1lineart.kulaone.com/                         }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function __blTenStr(style: TtrackerStyle) : string;
+begin
+   case style of
+      TtrackerStyle.TRACKER_WAVY:
+         result := 'Â¸.Â·Â´Â¯`Â·.Â¸Â¸';
+      TtrackerStyle.TRACKER_UNDERLINE:
+         result := '__________';TtrackerStyle.TRACKER_DASH:
+         result := '----------';
+      TtrackerStyle.TRACKER_EQUALS:
+         result := '==========';
+      TtrackerStyle.TRACKER_SLASH:
+         result := '//////////';
+      TtrackerStyle.TRACKER_SWORD:
+         result := '()==[::::>';
+      TtrackerStyle.TRACKER_FISH:
+         result := ' <`))))>< ';
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __blSeparator()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function __blSeparator(style: TtrackerStyle; centeredString: string = '') : string;
+
+var
+   l, lsides, lcenter: integer;
+
+begin
+   if (centeredString = '') then
+   begin
+      result := replicate(__blTenStr(style), 10);
+      exit;
+   end;
+
+   case length(centeredString) of
+      1..20:   begin lsides := 4; lcenter := 20; end;
+      21..40:  begin lsides := 3; lcenter := 40; end;
+      41..60:  begin lsides := 2; lcenter := 60; end;
+      61..80:  begin lsides := 1; lcenter := 80; end;
+      else     begin lsides := 0; lcenter :=100; end;
+   end;
+
+   if (lsides = 0) then
+      exit(centeredString);
+
+   l := (lcenter div 2) - (length(centeredString) div 2) + length(centeredString);
+   result := replicate(__blTenStr(style), lsides) +
+      padr(padl(centeredString, l), lcenter) + replicate(__blTenStr(style), lsides);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __blDetailLine()                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function __blDetailLine(style: TtrackerStyle; dataStr: string) : string;
+begin
+   result := __blTenStr(style) + ' ' + padr(dataStr, 79) + __blTenStr(style);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __blnum15()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function __blnum15(e: extended) : string;
+var
+   s: string;
+begin
+   // cut it down to two decimals
+   s := format('%.2f', [e]);
+   e := StrToFloat(s);
+   s := groupDigits(e, ',');
+   s := padl(s, 15);
+   result := s;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  TTrackableItem.progressReport()                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTrackableItem.progressReport(style: TtrackerStyle; hoursRunning, hoursActive: extended);
+var
+   i: integer;
+   itemVal, valX: extended;
+   tmp: string;
+
+begin
+   case datatype of
+      TTrackableType.TTTint64:
+         itemVal := i64Ptr^;
+      TTrackableType.TTTinteger:
+         itemVal := iPtr^;
+      TTrackableType.TTTextended:
+         itemVal := ePtr^;
+      TTrackableType.TTTString:
+         begin
+            writeln(__blDetailLine(style, '  [' + self.itemName + '] ' + sPtr^));
+            exit;
+         end;
+   end;
+
+   tmp := format('  %15.15s %15.15s ', [self.itemName,__blnum15(itemVal)]);
+   if (self.doHourly) then
+      tmp := tmp + format('%15.15s %15.15s',
+         [__blnum15(itemVal/hoursRunning), __blnum15(itemVal/hoursActive)]);
+
+   writeln(__blDetailLine(style, tmp));
+
+   for i := 0 to high(self.multipliers) do
+   begin
+      valX := itemVal * self.multipliers[i].val;
+      tmp := format('  %15.15s %15.15s ',
+         [self.multipliers[i].multName, __blnum15(self.multipliers[i].val * itemVal)]);
+      if (self.multipliers[i].doHourly) then
+         tmp := tmp +format('%15.15s %15.15s',
+            [__blnum15(valX/hoursRunning), __blnum15(valX/hoursActive)]);
+
+      writeln(__blDetailLine(style, tmp));
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  TTracker.progressReport()                                          }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTracker.progressReport(style: TtrackerStyle = TtrackerStyle.TRACKER_SLASH);
+
+var
+   i, j: integer;
+   hoursRunning, hoursActive: extended;
+
+begin
+   hoursRunning := self.timer.getTotalTime() / 3600000;
+   hoursActive := self.timer.getTime() / 3600000;
+
+   writeln(__blSeparator(style));
+   for i := 0 to (high(self.header)) do
+      writeln(__blSeparator(style, self.header[i]));
+
+   writeln(__blDetailLine(style, ''));
+   writeln(__blDetailLine(style, ' Script runtime:'));
+   writeln(__blDetailLine(style, '      ' + msToTime(self.timer.getTotalTime(),TIME_ABBREV) +
+      '(Total) ' + msToTime(self.timer.getTime(),TIME_ABBREV) + '(Active) ' +
+      msToTime(self.timer.getTotalTime() - self.timer.getTime(), TIME_ABBREV) + '(Break)'));
+   writeln(__blDetailLine(style, ''));
+
+   for i := 0 to (high(self.sections)) do
+   begin
+      writeln(__blSeparator(style, self.sections[i].collName));
+      writeln(__blDetailLine(style, '                            Total        Per Hour    /Hour Active'));
+      for j := 0 to high(self.sections[i].items) do
+      begin
+         self.sections[i].items[j].progressReport(style, hoursRunning, hoursActive);
+      end;
+      writeln(__blDetailLine(style, ''));
+   end;
+   writeln(__blSeparator(style));
+   writeln('');
+   writeln('');
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  init()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTracker.init(s: string; h: TStringArray);
+var i: integer;
+begin
+   self.trackerName := s;
+   self.header := h;
+   self.timer.reset();
+   self.timer.start();
+   setLength(sections, 0);
+   __int64Len := 0;
+   __intLen := 0;
+   __extLen := 0;
+   __strLen := 0;
+   for i := 0 to 49 do
+   begin
+      __int64List[i] :=-1;
+      __intList[i] := -1;
+      __extList[i] := -1.1;
+      __strList[i] := '';
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  pause()                                                            }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTracker.pause();
+begin
+   self.timer.pause();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  resume()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTracker.resume();
+begin
+   self.timer.start();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  start()                                                            }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTracker.start();
+begin
+   self.timer.start();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  addSection()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TTracker.addSection(sectionKey: string): integer;
+
+var
+   i: integer;
+
+begin
+   for i := 0 to high(self.sections) do
+      if (self.sections[i].collName = sectionKey) then
+      begin
+         result := i;
+         exit;
+      end;
+
+   setLength(self.sections, length(self.sections)+1);
+
+   with self.sections[high(self.sections)] do
+   begin
+      collName := sectionKey;
+      setLength(items, 0);
+   end;
+   result := high(self.sections);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __Allocate()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  hand out a pointer to what they asked for                          }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TTracker.__Allocate(dtype: TTrackableType): Pointer;
+begin
+   result := nil;
+
+   case dtype of
+      TTrackableType.TTTint64:
+         begin
+            if (__int64Len < length(self.__int64List)) then
+            begin
+               result := @self.__int64List[__int64Len];
+               inc(__int64Len);
+            end;
+         end;
+      TTrackableType.TTTinteger:
+         begin
+            if (__intLen < length(self.__intList)) then
+            begin
+               result := @self.__intList[__intLen];
+               inc(__intLen);
+            end;
+         end;
+      TTrackableType.TTTextended:
+         begin
+            if (__extLen < length(self.__extList)) then
+            begin
+               result := @self.__extList[__extLen];
+               inc(__extLen);end;
+         end;
+      TTrackableType.TTTString:
+         begin
+            if (__strLen < length(self.__strList)) then
+            begin
+               result := @self.__strList[__strLen];
+               inc(__strLen);
+            end;
+         end;
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __addItem()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TTracker.__addItem(sectionKey, key: string;
+   dtype: TTrackableType; i64v: int64; iv: integer; ev: extended;
+   sv: String; hourly: boolean): integer;
+
+var
+   idx, i, h: integer;
+   ptr: Pointer;
+
+begin
+   // add or get section key
+   idx := self.addSection(sectionKey);
+
+   // if it's already in the list return the index
+   for i := 0 to high(self.sections[idx].items) do
+      if ( self.sections[idx].items[i].itemName = key) then
+      begin
+         result := i;
+         exit;
+      end;
+
+   // it's not in the list so add it
+
+   setLength(self.sections[idx].items,
+               length(self.sections[idx].items)+1);
+
+   h := high(self.sections[idx].items)
+   with self.sections[idx].items[h] do
+   begin
+      itemName := key;
+      doHourly := hourly;
+      setLength(multipliers, 0);
+      datatype := dtype;
+
+      ptr := self.__Allocate(datatype);
+      case datatype of
+         TTrackableType.TTTint64:
+            begin
+               i64Ptr := ptr;
+               i64Ptr^ := i64v;
+               i64Initial := i64v;
+            end;
+         TTrackableType.TTTinteger:
+            begin
+               iPtr := ptr;
+               iPtr^ := iv;
+               iInitial := iv;
+            end;
+         TTrackableType.TTTextended:
+            begin
+               ePtr := ptr;
+               ePtr^ := ev;
+               eInitial := ev;
+            end;
+         TTrackableType.TTTString:
+            begin
+               sPtr := ptr;
+               sPtr^ := sv;
+            end;
+      end;
+   end;
+   result := h;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  addint64()                                                         }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTracker.addint64(var addMe: ^int64; sectionKey, key: string;
+   initial: int64 = 0; hourly : boolean = true);
+var
+   sectionIdx, itemIdx: integer;
+begin
+   itemIdx := self.__addItem(sectionKey, key,
+         TTrackableType.TTTint64, initial, -1, -1.0, '', hourly);
+
+   sectionIdx := self.addSection(sectionKey);
+   addMe := self.sections[sectionIdx].items[itemIdx].i64Ptr;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  addInteger()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTracker.addInteger(var addMe: ^integer;
+   sectionKey, key: string; initial: integer = 0;
+   hourly : boolean = true);
+var
+   sectionIdx, itemIdx: integer;
+begin
+   itemIdx := self.__addItem(sectionKey, key,
+         TTrackableType.TTTinteger, -1, initial, -1.0, '', hourly);
+
+   sectionIdx := self.addSection(sectionKey);
+   addMe := self.sections[sectionIdx].items[itemIdx].iPtr;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  addExtended()                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTracker.addExtended(var addMe: ^extended;
+   sectionKey, key: string; initial: extended = 0;
+   hourly : boolean = true);
+var
+   sectionIdx, itemIdx: integer;
+begin
+   itemIdx := self.__addItem(sectionKey, key,
+         TTrackableType.TTTextended, -1, -1, initial, '', hourly);
+
+   sectionIdx := self.addSection(sectionKey);
+   addMe := self.sections[sectionIdx].items[itemIdx].ePtr;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  addString()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTracker.addString(var addMe: ^String;sectionKey, key: string; initial: string = '');
+var
+   sectionIdx, itemIdx: integer;
+begin
+   itemIdx := self.__addItem(sectionKey, key,
+         TTrackableType.TTTString, -1, -1, -1.0, initial, false);
+
+   sectionIdx := self.addSection(sectionKey);
+   addMe := self.sections[sectionIdx].items[itemIdx].sPtr;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  add() -- int64 version                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TTracker.add(sectionKey, key: string; initial: int64;
+   hourly : boolean = true) : Pointer;
+var p: ^int64;
+begin
+   self.addInt64(p, sectionKey, key, initial, hourly);
+   result := p;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  add() -- integer version                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TTracker.add(sectionKey, key: string; initial: integer;
+   hourly : boolean = true) : Pointer; overload;
+var p: ^integer;
+begin
+   self.addInteger(p, sectionKey, key, initial, hourly);
+   result := p;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  add() -- extended version                                          }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TTracker.add(sectionKey, key: string; initial: extended;
+   hourly : boolean = true) : Pointer; overload;
+var p: ^extended;
+begin
+   self.addExtended(p, sectionKey, key, initial, hourly);
+   result := p;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  add() -- string version                                            }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TTracker.add(sectionKey, key: string;
+   initial: string) : Pointer; overload;
+var p: ^string;
+begin
+   self.addString(p, sectionKey, key, initial);
+   result := p;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  addMultiplier()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TTracker.addMultiplier(sectionKey, itemKey, mkey: string;
+   initial: extended; hourly : boolean = true);
+
+var
+   sectionIdx, itemIdx: integer;
+
+   procedure __addM(var mArr: array of TTrackableMultiplier;
+         key: string; e: extended; hourly: boolean);
+   var mIdx: integer;
+   begin
+      for mIdx := 0 to high(mArr) do
+         if (mArr[mIdx].multName = key) then exit;
+
+      setLength(mArr, length(mArr)+1);
+      with mArr[high(mArr)] do
+      begin
+         multName := key;
+         doHourly := hourly;
+         val:= e;
+      end;
+   end;
+
+begin
+   // add or get section key
+   sectionIdx := self.addSection(sectionKey);
+
+   // find the item to attach this multiplier to
+   for itemIdx := 0 to high(self.sections[sectionIdx].items) do
+      if ( self.sections[sectionIdx].items[itemIdx].itemName = itemKey) then
+      begin
+         __addM(self.sections[sectionIdx].items[itemIdx].multipliers,
+            mkey, initial, hourly);
+         exit;
+      end;
+
+   // we should not make it here.
+   writeln('***** ERROR: Cant add multiplier [', mkey, '] to non existent [',
+      sectionKey, '][', itemKey, ']');
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  main() for test mode                                               }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{$IFDEF TESTMAIN}
+const
+   header: TStringArray = [
+'__________                                                   ',
+'\______   \_______  ____   ___________   ____   ______ ______',
+' |     ___/\_  __ \/  _ \ / ___\_  __ \_/ __ \ /  ___//  ___/',
+' |    |     |  | \(  <_> ) /_/  >  | \/\___/ \___ \ \___ \ ',
+' |____|     |__|   \____/\___  /|__|    \___  >____  >____  >',
+'                        /_____/             \/     \/     \/ '];
+
+var
+   tripsToBank, logsCut: ^integer = nil;
+   statLine, statLine2: ^string = nil;
+   health: ^extended = nil;
+
+begin
+   tracker.init('Script Name Here', header);
+{
+   tracker.addInteger(tripsToBank, 'Chop Magics',     'Bank Runs', 0);
+   tracker.addInteger(logsCut,     'Chop Magics',     'Logs',      0);
+   tracker.addMultiplier(          'Chop Magics','Logs',      'Profit', 1084);
+   tracker.addMultiplier(          'Chop Magics',     'Logs',      'XP',     250);
+   tracker.addSection(             'There is nothing here');
+   tracker.addString(statLine,     'Script Activity', 'Status',    'Life is good');
+   tracker.addString(statLine2,    'Script Activity', 'Drink',     'Coke');
+   tracker.addExtended(health,     'Stats',           'Health',    22.22,    false);
+}
+   tripsToBank := tracker.add('Chop Magics',     'Bank Runs', 0);
+   logsCut     := tracker.add('Chop Magics',     'Logs',      0);
+   tracker.addMultiplier(     'Chop Magics',     'Logs',      'Profit', 1084);
+   tracker.addMultiplier(     'Chop Magics',     'Logs',      'XP',     250);
+   tracker.addSection(             'There is nothing here');
+   statLine    := tracker.add('Script Activity', 'Status',    'Life is good');
+   statLine2   := tracker.add('Script Activity', 'Drink',     'Coke');
+   health      := tracker.add('Stats',           'Health',    22.22,    false);
+
+
+   sleep(3000);
+   tracker.progressReport(TtrackerStyle.TRACKER_UNDERLINE);
+
+   tripsToBank^ := 1;
+   logsCut^ := 28;
+   health^ := 45.3;
+   statLine^ := 'Life is still pretty good';
+   statLine2^ := 'Pepsi';
+   sleep(3000);
+   tracker.progressReport(TtrackerStyle.TRACKER_DASH);
+
+   tripsToBank^ := 4;
+   logsCut^ := 112;
+   health^ := 0.01;
+   statLine^ := 'Argh';
+   statLine2^ := 'Poison';
+   sleep(3000);
+   tracker.progressReport(TtrackerStyle.TRACKER_EQUALS);
+end.
+{$ELSE}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  initializer()                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+begin
+   tracker.init('Un-named Script', ['No Header Set']);
+
+   updater.check4update('blTracker.simba', blTrackerVersion,
+      blTrackerVerUrl, blTrackerCodeUrl, true);
+end;
+{$ENDIF}

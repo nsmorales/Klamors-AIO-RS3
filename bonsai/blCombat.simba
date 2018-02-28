@@ -1,0 +1,992 @@
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  blCombat.simba                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+//{$include_once SRL-6-SIMBA1.2/lib/misc/srlplayerform.simba}
+{$include_once bonsai/blNpc.simba}
+{$include_once bonsai/blTracker.simba}
+{$include_once bonsai/blBreak.simba}
+{$include_once bonsai/blMisc.simba}
+{$include_once bonsai/blUpdater.simba}
+{$include_once Klamor/kMisc.simba}
+{$include_once Klamor/kOnScreenDisplay.simba}
+{$include_once Klamor/kExpTracker.simba}
+{$f-}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+const
+   blCombatVersion = '2.5';
+   blCombatVerUrl  = 'http://pastebin.com/raw/Tz7B1vx0';
+   blCombatCodeUrl = 'http://pastebin.com/raw/wuYUh3i8';
+   fighterCodeUrl = 'http://pastebin.com/raw/wR7FhHib';
+
+   _combatPopupDTMstr  = 'mrAAAAHic42BgYFgJxLuB+CAU7wTiFUC8GIoXQTFI' +
+         'bBsQ74FiEHsZEOs6+4Kxpq0bg6yOEYOkqiYYg9ggcUKAkQCGAQCaWw+7';
+   _combatAdrenalineDTMstr = 'mWAAAAHicY2FgYLCGYjsgdgRieSBWBmJFKHZ0heD/dRCMDhjRMAgAABxBBYg=';
+   _combatHealthDTMstr = 'mggAAAHicY2NgYGgB4l1Q3AXErUDcCcQKQCwPxKpQ' + 
+         'rALESkDMoImE1SF4zmkGnIARB4YAAHPSBpw=';
+   _combatGoldLockDTMString = 'mlwAAAHicY2dgYChjZGCohWIQuwqIy4G4GIi5oZgdipmR8OVJkmB8a6YmGDv6hDJs67ZgsHHzY8AHGPFgKAAAxWIM8w==';
+
+   __ENEMY0TIMEOUT = 3500;
+   __MOTIONPIXELOFF = 2;
+   __MOTIONMIN = 30;
+   __MOTIONMAX = 800;
+
+   REDDISH = 1447227;
+   REDDISHTOL = 7;
+   GOLDISH = 439012;
+   GOLDISHTOL = 3;
+   
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+//
+// should probably try to separate the generic vars from the
+// doMain() somehow.
+//
+type
+   TcombatMgr = record
+      didMain:              boolean;
+      healthPercentToEatAt: integer;
+      healthPercentToQuit:  integer;
+      healthTimer:          TTimeMarker;
+      logoutWhenExiting:    boolean;
+      playerName:           string;
+      playerFile:           string;
+      desiredWorld:         integer;
+      mouseStyle:           integer;
+      cantFindNpcTimeout:   integer;
+      manualAbilities:      boolean;
+      okToMove:             boolean;
+      averageSessionMin:    integer;
+      sessionVarianceMin:   integer;
+      averageBreakMin:      integer;
+      breakVarianceMin:     integer;
+      npcToFight:           string;
+      foodKey:              string;
+      sgsKey:               string;
+      failTimer:            TTimeMarker;
+      scriptName:           string;
+      maxFightSeconds:      integer;
+      timesFailed:          integer;
+      lastTargetBox:        TBox;
+   end;
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+var
+   combatMgr: TcombatMgr;
+	_enemyHealth0DTM: integer;
+	_combatPopupDTM, _combatAdrenalineDTM, _combatHealthDTM, _combatGoldLockDTM: integer;
+   __npc: TNpc;
+   __fightOverlay: TblBitmap;
+   __fightOverlayGrid: TBoxArray;
+   __enemy0timer: TTimeMarker;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  refreshOverlay()                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Paints the overlay boxes with the right colors and draws it        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcombatMgr.refreshOverlay(lock, healthBar, adrenaline, 
+   popup, yellowCircle, redCircle, enemy0, infight: boolean);
+
+var
+   i, x, y: integer;
+   tpa: TPointArray;
+   overlayCopy: TblBitmap;
+   
+begin
+   overlayCopy := __fightOverlay.copy();
+   x := minimap.getBounds().x1;
+   y := minimap.getBounds().y2 + 1;
+   
+   if (enemy0) then
+   begin
+      overlayCopy.replaceColor(8222840, 255);
+      overlayCopy.draw(x, y);
+      sleep(150);
+      overlayCopy.replaceColor(255, 8222840);
+      overlayCopy.draw(x, y);
+      sleep(150);
+      overlayCopy.replaceColor(8222840, 255);
+      overlayCopy.draw(x, y);
+      sleep(150);
+      overlayCopy.replaceColor(255, 8222840);
+   end
+   else
+   begin
+      for i := 0 to 7 do
+      begin
+         __fightOverlay.setAsTarget();
+         findColors(tpa, 8222840, __fightOverlayGrid[i]);
+         __fightOverlay.releaseTarget();
+         
+         case i of
+            0: if lock         then overlayCopy.setPixels(tpa, 48895);
+            1: if healthbar    then overlayCopy.setPixels(tpa, 48895);
+            2: if adrenaline   then overlayCopy.setPixels(tpa, 48895);
+            3: if popup        then overlayCopy.setPixels(tpa, 48895);
+            4: if yellowCircle then overlayCopy.setPixels(tpa, 48895);
+            5: if redCircle    then overlayCopy.setPixels(tpa, 48895);
+            6: if enemy0       then overlayCopy.setPixels(tpa, 255);
+            7: if infight      then overlayCopy.setPixels(tpa, 5027641);
+         end;   
+      end;
+   end;
+   overlayCopy.draw(x, y);
+   overlayCopy.free();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  detectGoldLock()                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Detects the gold lock on the npc popup.                            }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcombatMgr.detectGoldLock(): boolean;
+var
+   x,y: integer;
+begin
+  result := findDTM(_combatGoldLockDTM, x, y, mainScreen.getBounds());
+    
+//   result := (countColorTolerance(2726093, 
+//         mainscreen.getBounds(), 
+//         9, 
+//         colorSetting(2,0.14,2.16)) > 75);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  detectHealthbar()                                                  }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Detects the health bar above the player.                           }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcombatMgr.detectHealthbar(): boolean;
+var
+   x, y: integer;
+   b: TBox;
+begin
+   b := inttobox(mainscreen.playerpoint.x-30, 
+      mainscreen.playerpoint.y-34,
+      mainscreen.playerpoint.x+29,
+      mainscreen.playerpoint.y-26);
+      
+   result := findDTM(_combatHealthDTM, x, y, b);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  detectAdrenalineBar()                                              }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Detects the adrenaline bar above the player.                       }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcombatMgr.detectAdrenalineBar(): boolean;
+var
+   x, y: integer;
+   b: TBox;
+begin
+   b := inttobox(mainscreen.playerpoint.x-30, 
+      mainscreen.playerpoint.y-27,
+      mainscreen.playerpoint.x+29,
+      mainscreen.playerpoint.y-19);
+      
+   result := findDTM(_combatAdrenalineDTM, x, y, b);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  detectEnemy0()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Detects when the enemy health is 0.                                }
+{                                                                     }
+{  It take a few seconds for the box to go away, so we have a timer   }
+{  Once we detect it, we will not try again until the timer           }
+{  expires.                                                           }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcombatMgr.detectEnemy0(): boolean;
+var
+   x, y: integer;
+begin
+   if (__enemy0timer.getTime() < __ENEMY0TIMEOUT) then
+      exit;
+      
+   if findDTM(_enemyHealth0DTM, x, y, mainscreen.getBounds()) then
+   begin
+      result := true;
+      __enemy0timer.reset();
+      __enemy0timer.start();
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  detectPopup()                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Detects when the enemy popup is displayed.                         }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcombatMgr.detectPopup(): boolean;
+var
+   x, y: integer;
+begin
+   result := findDTM(_combatPopupDTM, x, y, mainscreen.getBounds());
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  detectYellowCircle()                                               }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Detects where the enemytarget circle (yellow) is.  i think         }
+{  there can be more than one if swarming?   NOT WORKING              }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcombatMgr.detectYellowCircle(var t:TBox): boolean;
+var
+   i, votes: integer;
+   tpa: TPointArray;
+   atpa: T2DPointArray;
+
+begin
+// was findColorsTolerance(tpa, 2818047, mainscreen.getBounds(), 100)
+
+   result := false;
+   if not findColorsTolerance(tpa, 2293759, mainscreen.getBounds(), 3, colorSetting(2, 0.0, 0.0)) then
+      exit;
+
+   atpa := TPAtoATPAEx(tpa, 50, 50);
+   atpa.filterBetween(0, 18);
+//   atpa.filterBetween(350, maxint);
+
+   if (length(atpa) = 1) then
+      inc(votes);
+
+   for i := 0 to high(atpa) do
+   begin
+// writeln('atpa[', i, '] length=', length(atpa[i]),
+// ' width=', atpa[i].getBounds().getWidth(),
+// ' height=', atpa[i].getBounds().getHeight());
+      if inrange(atpa[i].getBounds().getWidth(), 25, 45) then
+         inc(votes);
+      if inrange(atpa[i].getBounds().getHeight(), 25, 45) then
+         inc(votes);
+
+      if (votes > 1) then
+      begin
+         t := atpa[i].getBounds();
+         result := true;
+         exit;
+      end;
+   end;
+end;
+
+function TcombatMgr.detectYellowCircle(): boolean; overload;
+var junk:TBox
+begin
+   result := detectYellowCircle(junk);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  detectRedCircle()                                                  }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Detects where the enemy target circle (red) is. varies a little    }
+{  too wide.  lengths are ~ 60-250 box size roughly 40x40 but varies. }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+      function TcombatMgr._checkRedTPA(var tpa : TPointArray; var bOut: TBox): boolean;
+      var
+         i, votes: integer;
+         atpa: T2DPointArray;
+         b: TBox;
+      begin
+         atpa := tpa.cluster(45,45);
+         atpa.filterBetween(0, 50);
+         atpa.filterBetween(400, maxint);
+
+         if (length(atpa) = 1) then
+            inc(votes);
+
+         for i := 0 to high(atpa) do
+         begin             
+            b := atpa[i].getBounds();
+            
+            if inRange(b.getWidth(), 22, 45) then
+               inc(votes);
+            if inRange(b.getHeight(), 22, 45) then
+               inc(votes);
+               
+            if (votes > 1) then  // ok we got one
+            begin
+               b.expand(10);
+               b.x1 := max(0, b.x1); // we may have expanded it offscreen
+               b.y1 := max(0, b.y1);
+               b.x2 := min(b.x2, mainscreen.getBounds().x2);
+               b.y2 := min(b.y2, mainscreen.getBounds().y2);
+               lastTargetBox := b;
+               bOut := lastTargetBox;
+               result := true;
+               exit;
+            end;
+            votes := 0;
+         end;
+      end;
+      
+function TcombatMgr.detectRedCircle(var b : TBox): boolean;
+var
+   i: integer;
+   ctsTPA, oneColor, rawColors: TPointArray;
+   colors: TIntegerArray
+
+begin
+   // try the cts2 color
+//   findColorsTolerance(ctsTPA, 16579593, 
+//      mainscreen.getBounds(), 3, colorsetting(2,16.67,0.81));
+   findColorsTolerance(ctsTPA, 2436275, 
+      mainscreen.getBounds(), 10, colorsetting(2,0.02,1.01));
+      
+   // and the raw colors   
+   colors := [66815,329215,263679,132351,1445887,198143,197887,
+      1642751,394751,1577215,460543,1643007,1117439,986111,1249023,
+      1774079,1708543,1183487,1380351,526079,788991,1051903,
+      723199,1183231,723455,591871,1117695,395007,1511679,395252,
+      1314815,263674,657407,854783,657663];
+   
+   for i := 0 to high(colors) do
+      if (findcolors(oneColor, colors[i], mainscreen.getBounds())) then
+      begin
+         if (length(oneColor) > 100) then 
+         begin
+            writeln('TcombatMgr.detectRedCircle: skipped [', colors[i], '] length=', length(oneColor));
+            continue; // try to avoid bleed
+          end;
+         rawColors.combine(oneColor);
+      end;
+   
+   mainscreen.filterPointsPlayer(ctsTPA);
+   mainscreen.filterPointsPlayer(rawColors);
+   result := (_checkRedTPA(ctsTPA, b) or _checkRedTPA(rawColors, b));
+end;
+
+function TcombatMgr.detectRedCircle(): boolean; overload;
+var 
+   junk : TBox;
+begin
+   result := detectRedCircle(junk);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  isInFight()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2018/02 by Klamor                              }
+{                                                                     }
+{  Function to determine if the npc is in a fight.                    }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcombatMgr.isInFight(): boolean;
+begin
+   result := targetInfo.hasTarget();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  _doAbilities()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Chooses available abilities during s fight                         }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcombatMgr._doAbilities();
+
+var
+   i, pct: integer;
+   keyStr: string;
+
+begin
+   for i := 9 downto 1 do  // used 9 to match revolution
+   begin
+      pct := actionBar.getAbilityCooldown(i);
+// this is annoying; use it when needed
+//      {$IFDEF DEBUG_ON}
+//         writeln('***** TcombatMgr._doAbilities: ability[', i, '] returned cooldown ', pct);
+//      {$ENDIF}
+      if (pct = 1) then
+      begin
+         keyStr := intToStr(i);
+         SendKeys(keyStr[1], 60 + Random(60), 60 + Random(60));
+
+         {$IFDEF DEBUG_ON}
+            writeln('***** TcombatMgr._doAbilities: activated ability[', i, ']');
+         {$ENDIF}
+         exit;  // only do one ability
+      end;
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  _defaultHealthCheck()                                              }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure __defaultHealthCheck();
+begin
+   if (CombatMgr.sgsKey <> '') and (actionbar.getAdrenalinePercent() > 50) then
+   begin
+     OSD.status.update('***TCombatMgr.sgsKey');
+     OSD.refresh();
+     actionBar.clickSlot(8, MOUSE_LEFT);
+     exit;
+   end;
+
+   if (actionbar.getHPPercent() < combatMgr.healthPercentToEatAt) then
+   begin
+      OSD.status.update('Eating Food!');
+      OSD.refresh();
+      actionBar.clickSlot(14, MOUSE_LEFT);
+   end;
+
+   if (actionbar.getHPPercent() < combatMgr.healthPercentToQuit) then
+   begin
+      writeln('***** Terminating script due to low health');
+      terminateScript();
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  attack()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Finds an NPC, initiates an attack, and (if asked to) waits for     }
+{  the fight to complete.  Calls a user specified procedure to check  }
+{  if we need food and eat.                                           }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TcombatMgr.attack(var npc: Tnpc; waitTilDead: boolean;
+   foodProc: procedure; mouseStyle: integer = MOUSE_RIGHT): boolean;
+
+var
+  i, j, x, y: integer;
+  boxes: TBoxArray;
+  nname: string;
+  found, found2, motionMode: boolean;
+  colList: TIntegerArray;
+  t: int64;
+  combatBox, pb: TBox;
+  tmr: TTimeMarker;
+
+begin
+   pb := mainscreen.playerbox;
+   pb.expand(25);
+   
+   if (foodProc = nil) then
+      foodProc := __defaultHealthCheck;
+      
+   if (npc.name() = 'motiondetect') then 
+      motionMode := true;
+
+   OSD.status.update('Finding NPC');
+   OSD.refresh();
+   result := false
+   with npc._colorizer do
+   begin
+      if isMouseOverText(['ttack']) then
+      begin
+         setLength(boxes, 1);
+         getMousePos(x,y);
+         boxes[0] := Tbox([x-1,y-1,x+1,y+1]);
+      end
+      else
+         if (motionMode) then
+            boxes := motionBoxes(mainscreen.getBounds(), __MOTIONPIXELOFF, __MOTIONMIN, __MOTIONMAX)
+         else
+            boxes := multiBox(colList, (timesFailed + 1) mod 6, ((timesFailed + 1) mod 12)+5);
+      
+      for i := 0 to high(boxes) do // see if we can attack something in the boxes
+      begin
+         // avoid our last target and right around the player.  
+         // when things are fast we can right click
+         // the dying enemy and think we started another fight.        
+         if (lastTargetBox.overlap(boxes[i])) then continue;
+         if (pb.overlap(boxes[i])) then continue;
+         boxes[i].setLimit(mainscreen.getBounds());
+
+         {$IFDEF NAS_DRAWING}
+         NAS.Drawing.drawBox(boxes[i], true, 255);
+         {$ENDIF}
+         
+         result := detectObj(x, y, nname, boxes[i], mouseStyle);
+         
+         {$IFDEF NAS_DRAWING}
+         NAS.Drawing.clearArea(boxes[i]);
+         {$ENDIF}
+         
+         if result then
+         begin
+            lastTargetBox := boxes[i];
+            break;
+         end;
+         
+         if motionMode then break;  // only do one, info will get stale fast
+      end;
+        
+      if (not motionMode) then
+         for i := 0 to high(colList) do
+            updateTrials(colList[i], result);
+   end;
+
+   if (result and waitTilDead) then
+   begin
+      {$IFDEF DEBUG_ON} writeln('***** TcombatMgr.attack: Fight initiated'); {$ENDIF}
+      OSD.status.update('Fight attempt initiated');
+      OSD.refresh();
+      found := false;
+      found2 := false;
+
+      // give it time to run over and get into the fight
+      tmr.start();
+      repeat
+        wait(50);
+        found := isInFight();
+        if (tmr.getTime() > 3500) and (not minimap.isPlayerMoving()) then
+          break;
+      until found or (tmr.getTime() > randomRange(6500,8000));
+
+      combatBox := inttobox(50,50,55,55); // harmless spot in case we dont find one
+      i := 0;
+      t := getSystemTime() + (maxFightSeconds * 1000);
+      while isInFight() do
+      begin
+         OSD.status.update('Fighting');
+         OSD.refresh();
+         found2 := true;
+         wait(randomRange(75,125));
+         __defaultHealthCheck();
+         if (getSystemTime() >= t)then
+         begin
+            {$IFDEF DEBUG_ON} writeln('***** TcombatMgr.attack: Something wrong... in fight too long'); {$ENDIF}
+            terminateScript();
+         end;
+         inc(i);
+         
+         // see if we cant manage to target a new one while we fight this one
+         
+         if (not isMouseOverText(['ttack'])) then
+         begin
+            if (motionMode) then
+               boxes := motionBoxes(mainscreen.getBounds(), __MOTIONPIXELOFF, __MOTIONMIN, __MOTIONMAX)
+            else
+               boxes := npc._colorizer.multiBox(colList, (timesFailed + 1) mod 6, ((timesFailed + 1) mod 12)+5);
+               
+            for j := 0 to high(boxes) do
+            begin
+              if not targetInfo.hasTarget() then exit;
+               if (lastTargetBox.overlap(boxes[j])) then continue;
+               boxes[j].mouse();
+               if isMouseOverText(['ttack']) then break;
+            end;
+         end;
+      end;
+
+      if not (found or found2) then
+      begin
+         {$IFDEF DEBUG_ON} writeln('***** TcombatMgr.attack: Probable miss, did not detect start of fight'); {$ENDIF}
+         OSD.status.update('Missed');
+         OSD.refresh();
+         result := false;
+      end
+      else
+      begin
+         {$IFDEF DEBUG_ON} writeln('***** TcombatMgr.attack: End of fight detected');{$ENDIF}
+         OSD.status.update('End of fight!');
+         OSD.refresh();
+      end;
+   end;
+
+   if result then
+      timesFailed := 0
+   else
+      inc(timesFailed);
+end;
+
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  onBreakStart()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure __defaultBreakStart();
+begin
+   tracker.pause();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  onBreakEnd()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure __defaultBreakEnd();
+begin
+   tracker.resume();
+   doPlayerLogin();
+   combatMgr.failTimer.reset();
+   combatMgr.failTimer.start();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __blCombatTerminate()                                              }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure __blCombatTerminate();
+begin
+   if (combatMgr.didMain) then
+   begin
+      {$IFDEF DEBUG_ON}
+         writeln('***** ' + combatMgr.scriptName + ': Script shutting down');
+      {$ENDIF}
+      takeScreenshot(combatMgr.scriptName + '.png');
+      tracker.progressReport();
+      if (combatMgr.logoutWhenExiting and isLoggedIn()) then
+         players[currentPlayer].logout();
+         
+      {$IFDEF NAS_DRAWING}
+      NAS.Drawing.clear();
+      {$ENDIF}
+   end;
+ 	freeDTM(_enemyHealth0DTM);
+	//freeDTM(_combatPopupDTM);
+	freeDTM(_combatAdrenalineDTM);
+	freeDTM(_combatHealthDTM);
+  freeDTM(_combatGoldLockDTM);
+   __fightOverlay.free();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  getPlayerForm()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcombatMgr._getPlayerForm();
+
+var
+   mouseStr: string;
+
+begin
+   desiredWorld         := 73;
+   healthPercentToEatAt := 70;
+   healthPercentToQuit  := 25;
+   foodKey              := '';
+   sgsKey               := '8';
+   cantFindNpcTimeout   := 8;
+   averageSessionMin    := 120;
+   sessionVarianceMin   := 20;
+   averageBreakMin      := 17;
+   breakVarianceMin     := 5;
+   manualAbilities      := false;
+   logoutWhenExiting    := false;
+   okToMove             := false;
+   mouseStr             := 'right';
+   npcToFight           := 'Fire-giant';
+
+   case mouseStr of
+      'right', 'mouse_right':
+         mouseStyle := MOUSE_RIGHT;
+      'left', 'mouse_left':
+         mouseStyle := MOUSE_LEFT;
+   end;
+
+   currentPlayer := 0;
+   players[currentPlayer].world := desiredWorld;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  doMain                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure TcombatMgr.doMain();
+const
+   WAIT_FOR_END_OF_FIGHT = true;
+   trackingHeader: TStringArray = ['Bonsai ', 'Fighter', '_______'];
+
+var
+   killCounter: ^integer;
+
+begin
+   { ---- initialize and prepare things ----- }
+   
+   scriptName = 'bonsaiFighter';
+
+   _getPlayerForm();
+
+   breakTimer.init(averageSessionMin,
+      sessionVarianceMin,
+      averageBreakMin,
+      breakVarianceMin,
+      __defaultBreakStart,
+      __defaultBreakEnd);
+   
+   didMain := true;
+   SetupSRL();
+   disableSRLDebug := true;
+   mouseSpeed := 19;
+   healthTimer.start();
+   timesFailed := 0;
+   failTimer.start();
+   OSD.status.update('Booting up...');
+   OSD.refresh();
+   doPlayerLogin(true);
+   
+   { ---- get to work ----- } 
+   while (true) do
+   begin
+      breakTimer.check4break();
+      doPlayerLogin();
+      __defaultHealthCheck();
+
+      if (__npc.name() = '') then
+         if __npc.init(npcToFight) then
+         begin
+            OSD.status.update('Initialized ' + __npc.name());
+            OSD.refresh();
+            tracker.init(scriptName, trackingHeader);
+            tracker.addInteger(killCounter, 'Kills', __npc.name(), 0);
+            tracker.addMultiplier('Kills', __npc.name(),'XP', __npc.xp());
+            tracker.addMultiplier('Kills', __npc.name(),'Const XP', __npc.constitutionXp());
+         end
+         else
+         begin
+            writeln('***** Could not set up NPC [', npcToFight, '].');
+            terminateScript;
+         end;
+
+      OSD.status.update('Initiating attack');
+      OSD.refresh();
+      if attack(__npc, WAIT_FOR_END_OF_FIGHT, __defaultHealthCheck,
+         mouseStyle) then
+      begin
+         inc(killCounter^);
+         kTracker.update(round(__npc._xp + __npc._constitutionXp), 0, 1);
+         
+         if ((killCounter^ mod 15) = 0) then
+            tracker.progressReport();
+
+         timesFailed := 0;
+         failTimer.reset();
+         failTimer.start();
+         antiBan();
+
+         OSD.status.update('Detecting more colors');
+         OSD.refresh();
+         case __npc.colorCount() of
+            01..10: __npc.colorize(8000, 11);
+            11..20: __npc.colorize(5000, 21);
+            21..35: 
+               begin
+                  case random(25) of
+                     0..4: __npc.colorize(1000, 9999);
+                  end;
+               end;            
+            else
+               begin
+                  case random(50) of
+                     0..4: __npc.colorize(250, 9999);
+                  end;
+               end;
+         end;
+      end
+      else
+      begin
+         inc(timesFailed);    // npc was not found
+         if (timesFailed > 10) then 
+         begin
+            OSD.status.update('Not finding NPC, looking for more colors');
+            OSD.refresh();
+            __npc.colorize(2500, 50);
+         end;
+         
+         if (failTimer.getTime() >= (cantFindNpcTimeout*60000)) then
+         begin
+            OSD.status.update('Failing, fight too long timed out');
+            OSD.refresh();
+            writeln('**** Terminating script: unable to find npc for ',
+               cantFindNpcTimeout, ' minutes.');
+            break;
+         end;
+
+         if okToMove then
+         begin
+             if ((timesFailed mod 23) = 0) then
+             begin
+                OSD.status.update('Rotating cam to try to find npcs');
+                OSD.refresh();
+                __npc.angleTowards();
+                mainscreen.setangle(MS_ANGLE_HIGH);
+             end;
+             if ((timesFailed mod 38) = 0) then
+             begin
+                OSD.status.update('Having problems finding NPC, moving to closest yellow dot.');
+                OSD.refresh();
+                __npc.moveToClosest();
+             end;
+         end;
+      end; // npc not found
+   end; // while (true)
+
+   writeln('***** Loop ended, terminating');
+   terminateScript();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __makeEnemy0DTM                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function __makeEnemy0DTM(): integer;
+
+var
+  ts: TSDTM;
+  i: integer;
+
+begin
+   with ts.mainpoint do
+   begin
+      x := 0;
+      y := 0;
+      color := GOLDISH;
+      tolerance := GOLDISHTOL;
+   end;
+   setLength(ts.subpoints, 11);
+   
+   for i := 0 to 10 do
+      with ts.subpoints[i] do
+      begin
+         x := 0;
+         y := 0;
+         color := REDDISH;
+         tolerance := REDDISHTOL;
+      end;
+   ts.subpoints[5].color := GOLDISH;
+   ts.subpoints[5].tolerance := 44;
+
+   ts.subpoints[0].x  := -8;
+   ts.subpoints[1].x  := -7;
+   ts.subpoints[2].x  := -6;
+   ts.subpoints[3].x  := -5;
+   ts.subpoints[4].x  := -4;
+   ts.subpoints[5].x  := 4;
+   ts.subpoints[6].x  := 8;
+   ts.subpoints[7].x  := 9;
+   ts.subpoints[8].x  := 10;
+   ts.subpoints[9].x  := 11;
+   ts.subpoints[10].x := 12;
+   result := AddSDTM(ts);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  initializer                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+begin
+
+	_combatPopupDTM := DTMFromString(_combatPopupDTMstr);
+   setDTMTol(_combatPopupDTM, 20);
+	_combatAdrenalineDTM := DTMFromString(_combatAdrenalineDTMstr);
+   setDTMTol(_combatAdrenalineDTM, 30);
+	_combatHealthDTM := DTMFromString(_combatHealthDTMstr);
+   setDTMTol(_combatHealthDTM, 30);
+   _combatGoldLockDTM := DTMFromString(_combatGoldLockDTMString);
+   setDTMTol(_combatGoldLockDTM, 20);
+  
+   _enemyHealth0DTM := __makeEnemy0DTM();
+      
+     __fightOverlay.fromStr(218, 84, 'meJztm82uHCsMhHnsbObds4gy6' +
+        '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' +
+        'FRl+O9Wsd7+6IclkqlUqlUKpUU+gtZKH3m', 'overlay');
+        
+        
+   __fightOverlay.replaceColor(0, 1);
+   __fightOverlayGrid := grid(4, 2, 52, 41, 52, 41, point(26,21));
+
+   addOnTerminate('__blCombatTerminate');
+
+   (*
+   updater.check4update('blCombat.simba', blCombatVersion,
+      blCombatVerUrl, blCombatCodeUrl, true);
+
+   // fake it for the fighter, if we updated blCombat, update fighter.   
+   updater.check4update('bonsaiFighter.simba', blCombatVersion,
+      blCombatVerUrl, fighterCodeUrl, false);
+      
+   if (updater.wereUpdatesPerformed) then
+   begin
+      messagebox('Script was updated!  Close and reload the script.',
+         'Updated', 0);
+      terminateScript();
+   end;
+   *)
+
+   combatMgr.logoutWhenExiting  := false;
+   combatMgr.playerName         := 'noname';
+   combatMgr.playerFile         := 'nofile';
+   combatMgr.desiredWorld       := 0;
+   combatMgr.mouseStyle         := MOUSE_RIGHT;
+   combatMgr.cantFindNpcTimeout := 8;
+   combatMgr.manualAbilities    := false;
+   combatMgr.averageSessionMin  := 45;
+   combatMgr.sessionVarianceMin := 20;
+   combatMgr.averageBreakMin    := 17;
+   combatMgr.breakVarianceMin   := 9;
+   combatMgr.npcToFight         := 'autodetect';
+   combatMgr.scriptName         := 'bonsaiFighter';
+   combatMgr.maxFightSeconds    := 35;
+
+   __enemy0timer.reset();
+   __enemy0timer.start();
+end;

@@ -1,0 +1,1177 @@
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  blMisc.simba                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once bonsai/blUpdater.simba}
+{$include_once bonsai/blBitmap.simba}
+{$include_once Klamor/kOnScreenDisplay.simba}
+{$f-}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+const
+   blMiscVersion = '1.7';
+   blMiscVerUrl  = 'http://pastebin.com/raw/pj8EG4as';
+   blMiscCodeUrl = 'http://pastebin.com/raw/PCmzxGRT';
+   __blMiscAntibanTimeout = 240000;
+
+   BLMASK_BONSAI_TREE  = 0;
+   BLMASK_SIG_SM       = 1;
+   BLMASK_SIG_MED      = 2;
+   BLMASK_SIG_LG       = 3;
+   BLMASK_CLOCK_ICON   = 4;
+   BLMASK_CLOCK_LG     = 5;
+   BLMASK_LOGO         = 6;
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+var
+   __blMiscI, __blMiscBackground, __blMiscForeground: integer;
+   __blMiscAntibanTimer: TTimeMarker;
+   __blMiscScriptName: string;
+   __blMiscBitmaps: array[0..6] of TblBitmap;
+   __blMiscImageMasks: array[0..6] of TblBitmap;
+{_____________________________________________________________________}
+
+
+{=====================================================================}
+{    Some functions that had issues or were missing from SRL          }
+{=====================================================================}
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  getPixelShiftAverage()                                             }
+{  Written by: ?                                                      }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function getPixelShiftAverage(b: TBoxArray; waitPerLoop,
+   maxTime: integer): TIntegerArray; override;
+
+var
+  len, i, j: integer;
+  samples: array of TIntegerArray;
+  tmp: TIntegerArray;
+  timer: TTimeMarker;
+
+begin
+   i := 0;
+   timer.start();
+   while (timer.getTime() < maxTime) do
+   begin
+      setLength(samples, i + 1);
+      samples[i] := getPixelShift(b, waitPerLoop);
+      inc(i);
+   end;
+
+   setLength(tmp, i); // i got incremented one extra time so is good for length
+   len := length(b);
+   setLength(result, len);
+
+   for i := 0 to (len - 1) do
+   begin
+      for j := 0 to high(samples) do
+         tmp[j] := samples[j][i];
+
+      result[i] := tmp.average();
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  getPixelShift()                                                    }
+{  Written by: bonsai?                                                }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function getPixelShift(b: TBoxArray; time: integer): TIntegerArray; override;
+
+var
+  hi, i: integer;
+  before, after: integer;
+
+begin
+  if length(b) = 0 then exit;
+
+   hi := high(b);
+   setLength(result, hi+1);
+
+   before := bitmapFromClient(mainscreen.getBounds());
+   sleep(time);
+   after  := bitmapFromClient(mainscreen.getBounds());
+
+   for i := 0 to hi do
+   begin
+      b[i].setLimit(mainscreen.getBounds());
+      result[i] := calculatePixelShift(before, after, b[i]);
+    end
+
+   freeBitmap(before);
+   freeBitmap(after);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  groupDigits()                                                      }
+{  Written by: ?                                                      }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function groupDigits(n: extended; token: string): string;  override;
+var
+  b: integer;
+begin
+  result := toStr(n);
+
+  b := pos('.', result);
+  if (b < 1) then
+    b := length(result) + 1;
+  if (b > 3) then
+  repeat
+    b := b - 3;
+    if (b > 1) then
+      insert(token, Result, b);
+  until (b < 3);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  base type additions                                                }
+{  Written by: bonsai?                                                }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TIntegerArray.max(): integer;
+var
+   i, tmpmax: integer;
+begin
+   tmpmax := -(MAXINT);
+   for i := 0 to length(self) do
+      if self[i] > tmpmax then tmpmax := self[i];
+   exit(tmpmax);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  mouse overrides                                                    }
+{  Written by: BenLand100 & Flight                                    }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Cut sleeps in half so using mousespeed variable actually does      }
+{  something                                                          }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure _brakeWindMouse(xs, ys, xe, ye, gravity, wind, minWait, maxWait,
+          targetArea: extended; double: boolean);   override;
+var
+  veloX,veloY,windX,windY,veloMag,dist,randomDist,lastDist,D: extended;
+  lastX,lastY,MSP,W,TDist,T: integer;
+  sqrt2,sqrt3,sqrt5,PDist,maxStep,dModA,dModB,nModA,nModB: extended;
+begin
+  MSP  := mouseSpeed;
+  sqrt2:= sqrt(2);
+  sqrt3:= sqrt(3);
+  sqrt5:= sqrt(5);
+
+  TDist := distance(round(xs), round(ys), round(xe), round(ye));
+  if (TDist < 1) then
+    TDist := 1;
+
+  dModA := 0.88; //.80
+  dModB := 0.95; //.90
+
+  if (TDist > 220) then
+  begin
+    nModA := 0.08;
+    nModB := 0.04;
+  end 
+  else if (TDist <= 220) then
+  begin
+    nModA := 0.20;
+    nModB := 0.10;
+  end;
+
+  t := getSystemTime() + 5000;
+  repeat
+    if (getSystemTime() > t) then
+      break;
+
+    dist:= hypot(xs - xe, ys - ye);
+    wind:= minE(wind, dist);
+    if (dist < 1) then
+      dist := 1;
+    PDist := (dist/TDist);
+    if (PDist < 0.01) then
+      PDist := 0.01;
+
+    if double then
+    begin
+      if (PDist <= dModA) then
+      begin
+        D := (round((round(dist)*0.3))/5);
+        if (D < 20) then
+          D := 20;
+
+      end 
+      else if (PDist > dModA) then
+      begin
+        if (PDist < dModB) then
+          D :=randomRange(5, 8)
+        else if (PDist >= dModB) then
+          D := randomRange(3, 4);
+      end;
+    end;
+
+    if (PDist >= nModA) then
+    begin
+       D := (round((round(dist)*0.3))/5);
+      if (D < 20) then
+        D := 20;
+    end 
+    else if (PDist < nModA) then
+    begin
+      if (PDist >= nModB) then
+        D := randomRange(5, 8)
+      else if (PDist < nModB) then
+        D := randomRange(3, 4);
+    end;
+
+    if (D <= round(dist)) then
+      maxStep := D
+    else
+      maxStep := round(dist);
+
+    if dist >= targetArea then
+    begin
+      windX:= windX / sqrt3 + (random(round(wind) * 2 + 1) - wind) / sqrt5;
+      windY:= windY / sqrt3 + (random(round(wind) * 2 + 1) - wind) / sqrt5;
+    end else
+    begin
+      windX:= windX / sqrt2;
+      windY:= windY / sqrt2;
+    end;
+
+    veloX:= veloX + windX;
+    veloY:= veloY + windY;
+    veloX:= veloX + gravity * (xe - xs) / dist;
+    veloY:= veloY + gravity * (ye - ys) / dist;
+
+    if (hypot(veloX, veloY) > maxStep) then
+    begin
+      randomDist:= maxStep / 2.0 + random(round(maxStep) div 2);
+      veloMag:= sqrt(veloX * veloX + veloY * veloY);
+      veloX:= (veloX / veloMag) * randomDist;
+      veloY:= (veloY / veloMag) * randomDist;
+    end;
+
+    lastX:= round(xs);
+    lastY:= round(ys);
+    xs:= xs + veloX;
+    ys:= ys + veloY;
+
+    if (lastX <> round(xs)) or (lastY <> round(ys)) then
+      moveMouse(round(xs), round(ys));
+
+    W := (random((round(100/MSP)))*6);
+    if (W < 5) then
+      W := 5;
+    if double then
+      if (PDist > dModA) then
+        W := round(W*2.5)
+    else
+      W := round(W*1.2);
+    wait(round(W/2));
+    lastdist:= dist;
+  until(hypot(xs - xe, ys - ye) < 1)
+
+  if (round(xe) <> round(xs)) or (round(ye) <> round(ys)) then
+    moveMouse(round(xe), round(ye));
+
+  mouseSpeed := MSP;
+end;
+
+procedure _humanWindMouse(xs, ys, xe, ye, gravity, wind, minWait, maxWait, targetArea: extended);  override;
+var
+  veloX,veloY,windX,windY,veloMag,dist,randomDist,lastDist,D: extended;
+  lastX,lastY,MSP,W,T,TDist: integer;
+  sqrt2,sqrt3,sqrt5,maxStep,rCnc: extended;
+begin
+  MSP  := mouseSpeed;
+  sqrt2:= sqrt(2);
+  sqrt3:= sqrt(3);
+  sqrt5:= sqrt(5);
+
+  TDist := distance(round(xs),round(ys), round(xe), round(ye));
+  t := getSystemTime() + 10000;
+  repeat
+    if (getSystemTime() > t) then
+      break;
+
+    dist:= hypot(xs - xe, ys - ye);
+    wind:= minE(wind, dist);
+    if (dist < 1) then
+      dist := 1;
+
+    D := (round((round(TDist)*0.3))/7);
+    if (D > 25) then
+      D := 25;
+    if (D < 5) then
+      D := 5;
+
+    rCnc := random(6);
+    if (rCnc = 1) then
+      D := randomRange(2,3);
+
+    if (D <= round(dist)) then
+      maxStep := D
+    else
+      maxStep:= round(dist);
+
+    if dist >= targetArea then
+    begin
+      windX:= windX / sqrt3 + (random(round(wind) * 2 + 1) - wind) / sqrt5;
+      windY:= windY / sqrt3 + (random(round(wind) * 2 + 1) - wind) / sqrt5;
+    end else
+    begin
+      windX:= windX / sqrt2;
+      windY:= windY / sqrt2;
+    end;
+
+    veloX:= veloX + windX;
+    veloY:= veloY + windY;
+    veloX:= veloX + gravity * (xe - xs) / dist;
+    veloY:= veloY + gravity * (ye - ys) / dist;
+
+    if (hypot(veloX, veloY) > maxStep) then
+    begin
+      randomDist:= maxStep / 2.0 + random(round(maxStep) div 2);
+      veloMag:= sqrt(veloX * veloX + veloY * veloY);
+      veloX:= (veloX / veloMag) * randomDist;
+      veloY:= (veloY / veloMag) * randomDist;
+    end;
+
+    lastX:= round(xs);
+    lastY:= round(ys);
+    xs:= xs + veloX;
+    ys:= ys + veloY;
+
+    if (lastX <> round(xs)) or (lastY <> round(ys)) then
+      moveMouse(round(xs), round(ys));
+
+    W := (random((round(100/MSP)))*6);
+    if (W < 5) then
+      W := 5;
+    W := round(W*0.9);
+    wait(round(W/2));
+    lastdist:= dist;
+  until(hypot(xs - xe, ys - ye) < 1)
+
+  if (round(xe) <> round(xs)) or (round(ye) <> round(ys)) then
+    moveMouse(round(xe), round(ye));
+
+  mouseSpeed := MSP;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  conversions                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function daysToMsec(i: int64): Int64;
+begin
+   result := i * 24 {hours} * 60 {minutes} * 60 {seconds} * 1000 {ms};
+end;
+function hoursToMsec(i : int64): Int64;
+begin
+   result := i {hours} * 60 {minutes} * 60 {seconds} * 1000 {ms};
+end;
+function minToMsec(i: int64): Int64;
+begin
+   result := i {minutes} * 60 {seconds} * 1000 {ms};
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  randomVary                                                         }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function randomVary(initialVal: integer; variance: integer): integer;
+begin
+   result := initialVal + randomRange(-variance, variance);
+end;
+
+function randomVary(variance: integer): integer; overload;
+begin
+   result := randomVary(0, variance);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  dayOfWeek                                                          }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{}
+{  calculate day of week.  Sun=0, Mon=1 ... Sat=6                     }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function dayOfWeek(mm, dd, yyyy: integer): integer;
+var
+   mkeys: array[0..11] of integer = [1,4,4,0,2,5,0,3,6,1,4,6];
+begin
+   // algorithm from http://www.cs.unc.edu/~livingst/DateToDay/dayofweek.c
+   //
+   mm:= mm - 1;
+   result := (yyyy - 1900) + ((yyyy - 1900) div 4) + mkeys[mm] + dd - 1;
+
+   if ((yyyy > 1900) and (yyyy mod 4 = 0) and (mm < 2)) then
+      result := result - 1;
+
+   result := result mod 7;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  isWeekend                                                          }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  is the given day a weekend?                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function isWeekend(mm, dd, yyyy: integer): boolean;
+var
+   dow: integer;
+begin
+   result := false;
+   dow := dayOfWeek(mm,dd,yyyy);
+   if ((dow = 0) or(dow = 6)) then
+      result := true;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  isWeekend                                                          }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  is today a weekend?                                                }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function isWeekend(): boolean; overload;
+var
+   dateStr: string;
+   mm, dd, yyyy: integer;
+begin
+   result  := false;
+   dateStr := theDate(DATE_MONTH);
+   mm      := strToInt(copy(dateStr,1,2));
+   dd      := strToInt(copy(dateStr,4,2));
+   yyyy    := 2000 + strToInt(copy(dateStr,7,2));
+   result  := isWeekend(mm,dd,yyyy);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  timeOfDayToMsec                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function timeOfDayToMsec() : int64;
+var
+   hh, mm, ss: integer;
+   timeStr: string;
+   amPm: string;
+begin
+   timeStr := theTime();
+   hh   := strToInt(copy(timeStr,1,2));
+   mm   := strToInt(copy(timeStr,4,2));
+   ss   := strToInt(copy(timeStr,7,2));
+   amPm := copy(timeStr,10,2);
+   if ((hh = 12) and (amPm = 'AM')) then
+      hh := 0
+   else
+      if ((hh <> 12) and (amPm = 'PM')) then
+         hh := hh + 12;
+
+   result := ((hh * 60 {min} * 60 {sec}) + (mm * 60 {sec}) + ss) * 1000 {msec};
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  antiBan()}
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure antiBan();
+begin
+   if (__blMiscAntibanTimer.getTime() < __blMiscAntibanTimeout) then exit;
+
+   case random(100) of
+      0..92: exit;
+   end;
+
+   __blMiscAntibanTimer.reset();
+   __blMiscAntibanTimer.start();
+
+   OSD.status.update('Doing Antiban...');
+   OSD.refresh();
+
+   // half the time we do one, we just do this
+   case random(2) of
+      0:
+         begin
+            {$IFDEF DEBUG_ON}
+               writeln('***** antiBan [move off client and sleep]');
+            {$ENDIF}
+            mouseOffClient(OFF_CLIENT_RANDOM);
+            wait(randomRange(5000,10000));
+            exit;
+         end;
+   end;
+
+   // the other half we do this 
+   {$IFDEF DEBUG_ON}
+      writeln('***** antiBan [sleep and move mouse] + [secondary]');
+   {$ENDIF}
+   
+   sleepAndMoveMouse(randomRange(2000,3000));
+   case (random(12)) of
+     // 1:       randomRclickItem();
+      2:       sleepAndMoveMouse(randomRange(1000,2000));
+      3:       pickUpMouse();
+      4:       smallRandomMouse();
+ //     5:       randomCompass(50, 150, true);  srl bug at the moment
+      //6:       mouseMovingObject();
+      7,8,9:
+         begin
+            mouseOffClient(OFF_CLIENT_RANDOM);
+            wait(randomRange(5000,10000));
+         end;
+      10,11:
+      begin
+         tabStats.open();
+         mouseBox(tabStats.getSkillBox(random(25)), MOUSE_MOVE);
+         wait(randomRange(2750,4750));
+         tabBackpack.open();
+      end;
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  die                                                                }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure die(s: string);
+begin
+   writeln('*******************************************************');
+   writeln('***** FATAL ERROR: ', s);
+   writeln('*******************************************************');
+   terminateScript();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  setDTMtol()                                                        }
+{  Written by: (mod from bixby says post)                             }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure setDTMTol(var d: integer; tol: integer)
+
+var
+   ts: TSDTM;
+   i: integer;
+   s: string;
+
+begin
+   if not DTMExists(d) then exit;
+
+   ts := MDTMToSDTM(GetDTM(d));
+   for i := 0 to high(ts.subpoints) do
+      ts.subpoints[i].tolerance := tol;
+
+   s:= GetDTMName(d);
+   FreeDTM(d);
+   d := AddSDTM(ts);
+   SetDTMName(d, s);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  doPlayerLogin()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure doPlayerLogin(forceSetups: boolean = false);
+begin
+   if (not isLoggedIn()) then
+   begin
+      writeln('***** Logging player in');
+      takeScreenshot(__blMiscScriptName + '.png');
+      if (not players[currentPlayer].login()) then
+      begin
+         messagebox('Unable to log player in, exiting script.',
+            'Login Error', 0);
+         terminateScript();
+      end
+      else
+      begin
+         mainscreen.setangle(MS_ANGLE_HIGH);
+         exitTreasure();
+         exit;
+      end;
+   end;
+   if forceSetups then
+   begin
+      mainscreen.setangle(MS_ANGLE_HIGH);
+      exitTreasure();
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  StarPaint()                                                        }
+{  Written by: Camel                                                  }
+{  Date Last Modified: 2014/19                                        }
+{                                                                     }
+{ Returns a random background and foreground that should work together}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure StarPaint(point : TPoint; r, p, q : Integer; Color : TColor);
+var
+  Radian : Extended;
+  Points : TPointArray;
+  i : Integer;
+
+  OverLap : Integer;
+begin
+{$IFDEF NAS_DRAWING}
+{$IFDEF ONSCREENGRAPHICS}
+  SetLength(Points,p);
+
+  Radian := (2.0 * 3.14159) / p;
+
+  for i:=0 to High(Points) do
+  begin
+    Points[i].X := round( point.x  - (sin(Radian*i) * r) );
+    Points[i].Y := round( point.y  - (cos(Radian*i) * r));
+  end;
+
+  for i:=0 to High(Points) do
+  begin
+    if ( (i + q) < p ) then
+      OverLap := (i + q)
+    else
+      OverLap := (i + q) - p;
+
+    try
+      NAS.Drawing.LineTo(Points[i],Points[OverLap], Color);
+    except
+      // WriteLn('Tried to draw out of bounds');
+      break;
+    end;
+
+  end;
+{$ENDIF}
+{$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  randomColorCombo()                                                 }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{ Returns a random background and foreground that should work together}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure randomColorCombo(var bg: integer; var fg: integer);
+var
+   i: integer;
+
+   function __select1(iList: array of integer): integer;
+   begin
+      result := iList[random(length(iList))];
+   end
+
+begin
+   fg := __select1([clWhite, clTeal, clSilver, clOrange, clPink, clLime, clFuchsia]);
+   case fg of
+      clWhite:    bg := __select1([clGreen, clBlue, clPurple, clTeal, clNavy, clGray, clMaroon, clPink]);
+      clTeal:     bg := __select1([clWhite, clBlack, clYellow, clOrange, clLime, clSilver, clPink ]);
+      clSilver:   bg := __select1([clBlack, clBlue, clPurple, clTeal, clNavy, clGray, clMaroon ]);
+      clOrange:   bg := __select1([clBlack, clGreen, clPurple, clNavy, clMaroon ]);
+      clPink:     bg := __select1([clPurple, clNavy ]);
+      clLime:     bg := __select1([clGreen ]);
+      clFuchsia:  bg := __select1([clBlack, clNavy ]);
+   end;
+
+   if bg = clBlack then
+      bg := 1;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  bonsaiTree()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure bonsaiTree(p: TPoint; bg: integer = -1;
+   fg: integer = -1);
+begin
+{$IFDEF NAS_DRAWING}
+{$IFDEF ONSCREENGRAPHICS}
+   NAS.Drawing.drawBitmap(__blMiscBitmaps[BLMASK_BONSAI_TREE].key, p);
+{$ENDIF}
+{$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  sigSm()                                                            }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure sigSm(p: TPoint; bg: integer = -1;
+   fg: integer = -1);
+begin
+{$IFDEF NAS_DRAWING}
+{$IFDEF ONSCREENGRAPHICS}
+   NAS.Drawing.drawBitmap(__blMiscBitmaps[BLMASK_SIG_SM].key, p);
+{$ENDIF}
+{$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  sigMed()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure sigMed(p: TPoint; bg: integer = -1;
+   fg: integer = -1);
+begin
+{$IFDEF NAS_DRAWING}
+{$IFDEF ONSCREENGRAPHICS}
+   NAS.Drawing.drawBitmap(__blMiscBitmaps[BLMASK_SIG_MED].key, p);
+{$ENDIF}
+{$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  sigLg()                                                            }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure sigLg(p: TPoint; bg:integer = -1;
+   fg: integer = -1);
+begin
+{$IFDEF NAS_DRAWING}
+{$IFDEF ONSCREENGRAPHICS}
+   NAS.Drawing.drawBitmap(__blMiscBitmaps[BLMASK_SIG_LG].key, p);
+{$ENDIF}
+{$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  clockIcon()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure clockIcon(p: TPoint; bg: integer = -1;
+   fg: integer = -1);
+begin
+{$IFDEF NAS_DRAWING}
+{$IFDEF ONSCREENGRAPHICS}
+   NAS.Drawing.drawBitmap(__blMiscBitmaps[BLMASK_CLOCK_ICON].key, p);
+{$ENDIF}
+{$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  clockLg()                                                          }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure clockLg(p: TPoint; bg: integer = -1;
+   fg: integer = -1);
+begin
+{$IFDEF NAS_DRAWING}
+{$IFDEF ONSCREENGRAPHICS}
+   NAS.Drawing.drawBitmap(__blMiscBitmaps[BLMASK_CLOCK_LG].key, p);
+{$ENDIF}
+{$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  bonsaiLogo()                                                       }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure bonsaiLogo(p: TPoint = [-1,-1]);
+
+var
+   b: TBox;
+   x, y: integer;
+   
+begin
+{$IFDEF NAS_DRAWING}
+{$IFDEF ONSCREENGRAPHICS}
+   // shouldnt be doing all this in the draw function
+   // but its only intended to be called once so for
+   // now...
+   //
+   if (p.x = -1) then
+   begin
+      b := minimap.getBounds();
+      p.x := b.x2 - __blMiscImageMasks[BLMASK_LOGO].w - 1;
+      p.y := b.y2 - __blMiscImageMasks[BLMASK_LOGO].h - 10;
+   end;
+
+   __blMiscBitmaps[BLMASK_LOGO].free();
+   __blMiscBitmaps[BLMASK_LOGO] := __blMiscImageMasks[BLMASK_LOGO].copy();
+
+   with __blMiscBitmaps[BLMASK_LOGO] do
+   begin
+      // make the background half transparent
+      for x := 0 to (w - 1) do
+      begin
+         y := x mod 2;
+         while (y < (h - 1)) do
+         begin
+            if (getPixel(x, y) = 0) then
+               setPixel(x, y, 1);
+            y := y + 2;
+         end;
+      end;
+      // then do the coloring
+      replaceColor(clWhite, __blMiscForeground);
+      draw(p);
+      
+   end; // with __blMiscBitmaps[BLMASK_LOGO]
+{$ENDIF}
+{$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  statusHUD()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure statusHUD(txt: string; p: TPoint = [0,0]; bg: integer = -1;
+   fg: integer = -1);
+   
+var
+   bm: TblBitmap;
+   i, cw, ch: integer;
+
+begin
+{$IFDEF NAS_DRAWING}
+{$IFDEF ONSCREENGRAPHICS}
+   if (bg = -1) then bg := __blMiscBackground;
+   if (fg = -1) then fg := __blMiscForeground;
+
+   getClientDimensions(cw, ch);   
+   p.x := min(p.x, (cw-601));
+   p.y := min(p.y, (ch-21));
+   
+   bm.create(600,20);
+   bm.drawBox(0, 0,  59, 19, true, __blMiscForeground);   
+   bm.drawBox(60, 0, 599, 19, true, __blMiscBackground);
+   bm.drawText('STATUS', point(2,2), 'UpCharsEx', false, __blMiscBackground);
+   bm.drawText(txt, point(61, 2), 'UpCharsEx', false, __blMiscForeground);
+   
+   bm.draw(p);
+   bm.free(); 
+{$ENDIF}
+{$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  motionTpa()                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Returns the points that changed color during the time 't'          }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function motionTpa(b: TBox; n: integer = 1; desat: boolean = false; t: integer = 75): TPointArray;
+var
+   image1, image2, mask: TblBitmap;
+begin
+
+   image1.fromClient(b);
+   sleep(t);
+   image2.fromClient(b);
+   if (desat) then
+   begin
+      image1.desaturate();
+      image2.desaturate();
+   end
+   else
+   begin
+      image1.greyscale();
+      image2.greyscale();
+   end;
+   mask := image1.diff(image2, n, 255);
+   result := mask.findColor(255);
+   image1.free();
+   image2.free();
+   mask.free();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  motionColors()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Returns the colors that changed during the time 't'                }
+{  The new color is returned (i.e. should be the thing that moved)    }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function motionColors(b: TBox; n: integer = 1; t: integer = 75): TIntegerArray;
+var
+   image1, image2, diffmap: TblBitmap;
+begin
+   image1.fromClient(b);
+   sleep(t);
+   image2.fromClient(b);
+   diffmap := image1.diff(image2, n, -1);
+   result := diffmap.getAllPixels();
+   image1.free();
+   image2.free();
+   diffmap.free();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  motionBoxes()                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Returns the boxes of areas that are changing / in motion           }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function motionBoxes(b: TBox; n: integer = 1; minP: integer = 10;
+   maxP: integer = 1000; desat: boolean = false; t: integer = 75): TBoxArray;
+var
+   tpa: TPointArray;
+   atpa: T2DPointArray;
+   i: integer;
+begin
+   tpa := motionTpa(b, n, desat, t);
+   mainscreen.filterPointsPlayer(tpa);
+   atpa := tpa.split(4);
+   atpa.filterbetween(0, minP);
+   atpa.filterbetween(maxP, maxint);
+   atpa.sortFromFirstPoint(mainscreen.playerPoint);
+   
+   for i := 0 to high(atpa)do
+      result.append(atpa[i].getBounds());
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  __blMiscTerminate()                                                }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure __blMiscTerminate();
+begin
+   for __blMiscI := 0 to high(__blMiscImageMasks) do
+   begin
+      __blMiscImageMasks[__blMiscI].free();
+      __blMiscBitmaps[__blMiscI].free();
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  initializer                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+begin
+   updater.check4update('blMisc.simba', blMiscVersion,
+      blMiscVerUrl, blMiscCodeUrl, true);
+
+   addOnTerminate('__blMiscTerminate');
+
+   __blMiscAntibanTimer.reset();
+   __blMiscAntibanTimer.start();
+   
+   randomColorCombo(__blMiscBackground, __blMiscForeground);
+
+   __blMiscImageMasks[BLMASK_BONSAI_TREE].fromStr(165, 118,
+      'meJztWEmS5DgM0/8/rTlMTI1M' +
+      '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' +
+      '8Q95xngP', 'BonsaiTree');
+
+   __blMiscImageMasks[BLMASK_SIG_SM].fromStr(64, 15,
+      'meJzNk0ESgDAIA/v/T9ebUwlJM9' +
+      'hqc2QgLKm29lB/qp2nFKxz/QIphFSM9lh+rIgX+Yoryt8uXqRg7p+' +
+      'sTfwAx7bpoPg7QrEcwl03P+nQXyDEEWEyJXnJz2hFw+gQBjWngHd4' +
+      'WDEFdtJAZoeTRYE+ZhQOv5mGYAio2IzHOlGkqzXJlD9dhEXkxIapb' +
+      'YGEnayPZRGxZmRIqZyjmL8vvaI8uArPAdi6ZZ/Wkl/1MWjC', 'SigSm');
+
+   __blMiscImageMasks[BLMASK_SIG_MED].fromStr(85, 21,
+      'meJzlk0ESwyAMA/P/T6cz7aVj0F' +
+      'rUhDCpbw22pRXlOP6ozneZbd+1wNvVlbK01E9KAEAY/BkJ+OyqYYn' +
+      'N1ZXe7+b4RXsVdudp/OzN3Fx8njDLm/1XE44ct/5/8tNQv0FAS6fa' +
+      'KLob0rWjnsNmpxOE2Dx4U1OM71gyG9hnEV/Bsnr4DrEM4beWuv0Ou' +
+      '+MqLIEewHcMK7r0VH1hofS02+aoKxs8cjY1xB6ydQAn4vMgwA79VK' +
+      'RKqI4f1rJPnoVkIB+l7pCa6ia7Y9tRV3SpQ1MXDLQBqj1KaNRA6i3' +
+      'Nh4lSAypqCHaIcXrNVXe2bcJ+o/pWl36LgXtrMfgLU/33Tw==', 'SigMed');
+
+   __blMiscImageMasks[BLMASK_SIG_LG].fromStr(139, 33,
+      'meJztlUlyxDAMA+f/n56cUpWyu' +
+      'DRIKnYmwlEGQQDM8nod3Iz3N/oKPzHo8D+j06p5l3OmWRT6JHc5N5' +
+      'oCL1O9yznQCEauk/K32f98dK4Dlc+BdqP2V+sc6NfQvM450G6obX/' +
+      'kdfpZ9nVS/tejmnnmTZs/b2sh4xm5ctlGP8W+y3aK9XLdcqDx6xAR' +
+      'wu/U0ik2zsWjqYugh6kUphQkd4yl2WuDUE3aS3aRulJxSTnd2HFVa' +
+      'ClYahIGV5tk2leoH3Ak/VWk5ofbI0Wtg1xQMmySUV/hCv411jR1VD' +
+      'NpcInsDUJB1a3HDxRILbEHv908tUlupo5HVJ+BmrTXawBCarW2dF3' +
+      'hLZVSG10rlZp8oibtNadSMnQlWeXegmg8tdmSNwXJZanAp1eCBHOd' +
+      'apXrc9ma21jQYxJ7PAXxzKFGVpd6ucwp/vXt/LJ777F+7HB9hNnVr' +
+      'vh4rSiiH095nHTc20JCXd47UlIoAlJIc2MQE5LJOCHDx7JUMzsZJw' +
+      'bUdarDoJ94PCWv74QJpXiQOH4wnhoY2VXzRmZTvidrKg9+LZRGTAZ' +
+      'x+KKLVGEEDhJ7/SCpPVO8n0WKU0u0D5K9wSxBPxdxbyNRiE0OxhmH' +
+      'msUc3GHAFN9xnSfjIVk6rZ7r3GKmPPiQOCM4WZ6PvxXnCwVbyQo=', 'SigLg');
+
+   __blMiscImageMasks[BLMASK_CLOCK_ICON].fromStr(29, 26,
+      'meJzt0jECwCAIQ1Huf2m7OQiED6' +
+      'xlrMmr2poVc/Kpqm1wgN8kZAn+ZPZymOH5MMkP9SyJIj9UuBQWM5O' +
+      'zHhnflXijYC35WHuWF3XgZ0mrzIxZ6/+62XO4YdHdbBiyWm4Vj5u9' +
+      'OZN53ifDMIyVlXK0OZOJ2cJbIMFF5QN4nvgy', 'ClockIcon');
+
+   __blMiscImageMasks[BLMASK_CLOCK_LG].fromStr(64, 64,
+      'meJztmlkofG8Yx/kNYsi+JIooO8' +
+      'k2EyVuKFeWCy4sQ9mylUSWmGtFZCtrmSFcWG4skYS4sjRZkjCWEBe' +
+      '2C2X9Pf3Pv+k057zvvOfM4v8v38szz/N9Pu85zfs+73uOkdGvfvXf' +
+      'lZWVlUAgEAqF5ubmP82iWSKRqLy8fHJy8uPj4xuhs7Oz+fn5wsJCZ' +
+      '2fnn+b9Vw4ODi0tLZ+fnyhmjOrr6//8+fNT5OHh4TyYmdra2vLz8z' +
+      'Mw/Pn5uU7gVdrb2zPks9AtvEpSqdQw/L29vXoawt3dnQH4o6Ki9MR' +
+      'Pyc7OTt9D0Cs/CG6RTjgjIyMHBwdfX19HR0fp12UyGbPo8vJyXV2d' +
+      'r6+vtbU1PdjT0zMiIgJ+2t3dJR8ClNaGHCqenJzQDZOTk1W/woKlu' +
+      'g6jy8nJIXcuLS0lXDIcHR15kIvF4svLS6bb6ekpPYy6WFtby6MEKD' +
+      '8/n2QInDw9PDzu7+8xbi4uLqrg7OxsfuR0ra+v4/mPj48JrVZXVzX' +
+      'eDegWOOHBPwKybm5u3N3dUTEpKSn4ok1NTfgqjY2NGslVIoevrq5W' +
+      'ZT0/P2MiAwIC+BX19vYmJ6fk5eVFyH91dUU+8JiYGExReI6sWVzhQ' +
+      'XK5nJBfLVFjPP15MeXk5KQT/oeHBxL42NhYrvygw8NDVN2JiQlmPK' +
+      'wRCoWC6xBsbW01kgwNDfHgN8LeUnyiq6vryMgICX9JSYlGjO3tbXo' +
+      'KbL4I+SUSCapuRUUFPhdWUhL+2dlZjRhqKRcXF4T8zFyVoB/AZFla' +
+      'WpLAU8IDhIaGqsXDXETO39nZyaMu7KxRWdPT02pXMOsRCJoKtfj9/' +
+      'X1yfmj/UCQJCQmorKmpKdaUzc1N+DUzM5N+MTo6GgOwsrKiZrK2tk' +
+      'bOD4L1jhWmra0NlfL4+MiakpubSwXAtKO66OPjg6nONNnY2ODEj9r' +
+      'iwX6fvCilsLAwehhM7G5ubpjS/v7+TBOSvzxdGRkZrDDQSnHlp/ec' +
+      'JCooKGCatLa2cjIJCQlB8bDGCwQCTvEYLS4uMk26uro4mTg7O/8UP' +
+      '6sJbIg4mQiFQk48pqameuUHBQYGkpvAzpETj5mZma74h4eHWX1gUi' +
+      'U34Xr/jdD3DYbGdQjX19esVsHBwYQOmCMmrvz8jmJYrchn0YaGBlY' +
+      'HpVKJSoEWizWF69RBCdYIVjcLCwuS9IGBAdb0hYUFVAqzyaEEnTAP' +
+      'flB6ejrTbW5ujiT36+uLFaa/vx+VUlRUxJoCMjEx4TeE7u5uppvGo' +
+      '/KgoCAUSVxcHCoLMwWVlZXx4wdBx6LmNjMzg08ZGxtDkeATn56e+C' +
+      'XixXwpho9HMWjcxNXU1KByYXfAm5+5OCYmJqKC29vbUQwkp6yoXC0' +
+      'fAf192fv7OyrM2NhYSwDYaKDSoTHTZgjx8fEymQy/EcPA9/T0kFTB' +
+      'H+UVFxdrMwS8MHW/ubyU2dnZwfho+VqBH/zS0pIO3UQikSHhv7n/9' +
+      'aRSKd6wqqrKYPCpqak8bGGyxdsqFAotyfGzDSXUyTOJNJqDKisr+Z' +
+      'lj5nm6eMOD7O3tSUqA+vr6CL8qgb8/+etvbeApcfpO4+XlBWb4rKw' +
+      's2KdQZyxwB6ysrGAHAf28XC5HdZWssrGx0Z7f6J87Rl5UV1J7g6yl' +
+      'UJsRfejt7U2H5HQdHR3pG57rMR1X5eXl6Q8+KSlJr/AqwR5Qt+TUE' +
+      'bchBbPK+Pi49uSdnZ0/+4GiRCKBlpgr9sHBgU4+P9Ch0tLSmpuboX' +
+      'e9vb1lAiuVyoWFhY6ODrFY/NOkv/rV/15/Adky1AQ=', 'ClockLg');
+
+   __blMiscImageMasks[BLMASK_LOGO].fromStr(176, 118,
+      'meJztWO2u7CgM4/1fmpV2tUdM' +
+        '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' +
+        'dYkvzznUPXQV1eBwr4+K/EPIvLP7w==', 'Logo');
+
+   for __blMiscI := 0 to high(__blMiscImageMasks) do
+      if (__blMiscI <> BLMASK_LOGO) then
+         __blMiscBitmaps[__blMiscI].fromBwMask(__blMiscImageMasks[__blMiscI],
+            __blMiscBackground, __blMiscForeground,
+            __blMiscImageMasks[__blMiscI].name + 'Colored');
+end;

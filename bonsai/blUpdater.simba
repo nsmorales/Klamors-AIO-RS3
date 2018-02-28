@@ -1,0 +1,261 @@
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  blUpdater.simba                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{$f-}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+const
+   blUpdaterVersion = '1.2';
+   blUpdaterVerUrl  = 'http://pastebin.com/raw/zGMi4hu7';
+   blUpdaterCodeUrl = 'http://pastebin.com/raw/UM7XpgZQ';
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+type
+   Tupdater = record
+      wereUpdatesPerformed: boolean;
+   end;
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+var
+   updater: Tupdater;
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  header()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tupdater.header(s: string);
+begin
+   writeln('-------------------------------------------------------');
+   writeln('-- ', s);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  msg()                                                              }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tupdater.msg(s: string);
+begin
+   writeln('--     ', s);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  die()                                                              }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+procedure Tupdater.die(s: string);
+begin
+   writeln('*******************************************************');
+   writeln('***** FATAL ERROR: ', s);
+   writeln('*******************************************************');
+   terminateScript();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  rename()                                                           }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Renames a file.  If the new name exists it will either fail or     }
+{  delete it depending on the delIfExists flag.                       }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tupdater.rename(oldName: string; newName: string;
+   delIfExists: boolean = true): boolean;
+
+var
+   inFile, outFile, fsize: integer;
+   s: string;
+
+begin
+   if (FileExists(newName)) then
+   begin
+      if (not delIfExists) then
+         self.die('File already exists, could not rename ' +
+            oldName + ' to ' + newName);
+
+      self.msg('removing file ' + newName);
+      result := DeleteFile(newName);
+      if (not result) then
+         self.die('Error deleting ' + newName);
+   end;
+
+   inFile := OpenFile(oldName, false);
+   if (inFile = -1) then
+      self.die('Error opening ' + oldName + ' for reading.');
+
+   outfile := RewriteFile(newName, false);
+   if (outFile = -1) then
+      self.die('Error opening ' + newName + ' for writing.');
+
+   fsize := FileSize(inFile);
+
+   result := ReadFileString(inFile, s, fsize);
+   if (not result) then
+      self.die('Error reading from ' + oldName);
+
+   result := WriteFileString(outFile, s);
+   if (not result) then
+      self.die('Error writing to ' + newName);
+
+   CloseFile(inFile);
+   CloseFile(outFile);
+   result := true;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  createIncludeFolder()                                              }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+
+function Tupdater.createIncludeFolder(dname: string): boolean
+begin
+   self.header('Checking for ' + dname + ' include folder:');
+   if (DirectoryExists(includePath + dname)) then
+   begin
+      self.msg('include folder already exists, no change made');
+      result := true;end
+   else
+   begin
+      result := CreateDirectory(includePath + dname);
+      if (result) then
+         self.msg('created include folder ' + includePath + dname)
+      else
+         self.die('Could not create directory ' + includePath + dname);
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  isUpdateAvailable()                                                }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Checks the web for the newest version and compares it to the       }
+{  current one                                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tupdater.isUpdateAvailable(localVersion: string; url: string): boolean;
+
+var
+   webVersion, s: string;
+
+begin
+   webVersion := GetPage(url);
+   trim(webVersion);
+
+   if (not ExecRegExpr('^([0-9])*\.([0-9])*$', webVersion)) then
+   begin
+      writeln('***** ERROR: Invalid version read from site [', webVersion, ']');
+      result := false;
+      exit;
+   end;
+   
+   if (webVersion > localVersion) then
+   begin
+      self.msg('Version on disk (' + localVersion +
+         ') is out of date.  Latest version = ' + webVersion);
+      result := true;
+   end
+   else
+   begin
+      self.msg('Version is current, no update needed.');
+      result := false;
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  getPlayerForm()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Downloads the release.  If the file already exists, it will        }
+{  rename it to XXX.bak (it will delete any previous bak file with    }
+{  that name).                                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tupdater.download(fname: string; url: string;
+   isLib: boolean = false): boolean;
+
+var
+   fullPath, contents: string;
+   outFile: integer;
+
+begin
+   self.header('Installing latest ' + fname);
+   if (isLib) then
+      fullPath := includePath + 'bonsai\' + fname
+   else
+      fullPath := appPath + 'Scripts\' + fname;
+
+   if (FileExists(fullPath)) then
+   begin
+      self.msg('file ' + fullPath + ' already exists, renaming to .bak');
+      self.rename(fullPath, fullPath + '.bak');
+   end;
+
+   // we might get some error page so we check the text
+   // for our name.  if they're calling us to update, we
+   // were included at the top of the file.
+
+   contents := GetPage(url);
+   
+   if ((contents = '') or (pos('blUpdater.simba', contents) < 1)) then
+      self.die('Could not load new script contents from ' + url);
+
+   outfile := RewriteFile(fullPath, false);
+   if (outFile = -1) then
+      self.die('Error opening ' + fullPath + ' for writing.');
+
+   if (WriteFileString(outFile, contents)) then
+      self.msg('Script ' + fullPath + ' has been updated')
+   else
+      self.die('Error writing new contents to ' + fullPath);
+
+   CloseFile(outFile);
+   result := true;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  check4update()                                                     }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  Sees if an update is available and downloads it if needed.         }
+{  Changes the wereUpdatesPerformed flag if something was             }
+{  downloaded so the user can know it was done.                       }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function Tupdater.check4update(fname: string; currVer: string;
+   verUrl: string; codeUrl:string; isLib: boolean = false): boolean;
+begin
+  (*
+   self.header('Checking ' + fname + ' for updates.');
+   if (self.isUpdateAvailable(currVer, verUrl)) then
+   begin
+      result := self.download(fname, codeUrl, isLib);
+      if (result) then
+         self.wereUpdatesPerformed := true;
+   end;
+   *)
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  initializer                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/08                                        }
+{                                                                     }
+{  sets the wereUpdatesPerformed flag to false initially and          }
+{  checks for its own updates.                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+begin
+   updater.wereUpdatesPerformed := false;
+
+   // check for our own updates
+   (*
+   updater.check4update('blUpdater.simba', blUpdaterVersion,
+      blUpdaterVerUrl, blUpdaterCodeUrl, true);
+   *)
+end;

@@ -1,0 +1,329 @@
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  blBreak.simba                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{_____________________________________________________________________}
+{=====================================================================}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{$include_once SRL-6-SIMBA1.2/SRL.simba}
+{$include_once bonsai/blUpdater.simba}
+{$include_once bonsai/blMisc.simba}
+{$f-}
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+const
+   blBreakVersion = '1.1';
+   blBreakVerUrl  = 'http://pastebin.com/raw/Dy5iGRJV';
+   blBreakCodeUrl = 'http://pastebin.com/raw/XPiz7BJ5';
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+type
+   TBreakType = (BRK_SUICIDE, BRK_BASIC, BRK_HUMAN);
+
+   TBreakTimer = record
+      breakType           : TBreakType;
+      onBreakStart        : procedure;
+      onBreakEnd          : procedure;
+      nextScheduledBreak  : Int64;     // offset from getSystemTime()
+      averageSession      : int64;     // minutes
+      sessionVariance     : int64;     // minutes
+      averageBreak        : int64;     // minutes
+      breakVariance       : int64;     // minutes
+      weekdayStart        : int64;     // msec since midnight
+      weekdayEnd          : int64;     // msec since midnight
+      weekendStart        : int64;     // msec since midnight
+      weekendEnd          : int64;     // msec since midnight
+      startEndVariance    : int64;     // minutes
+      longWeekendBreakFlag: boolean;
+   end;
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+var
+   breakTimer: TBreakTimer;            // global instance for programs to use
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  calcNextBreakTime()                                                }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  calculate the next time we will take a break                       }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TBreakTimer.calcNextBreakTime(): Int64;
+
+begin
+   if (self.breakType = TBreakType.BRK_SUICIDE) then
+      exit;
+
+   result := getSystemTime() + ( (averageSession * 60000) +
+      randomRange(  -(self.sessionVariance * 60000),
+                     (self.sessionVariance * 60000)));
+
+   {$IFDEF DEBUG_ON}
+      writeln('***** TBreakTimer: Next break time calculated, [',
+         msToTime((result - getSystemTime()), TIME_BARE), '] from now');
+   {$ENDIF}
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  msecUntilBreak()                                                   }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TBreakTimer.msecUntilBreak(): integer;
+begin
+   result := nextScheduledBreak - getSystemTime();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  secUntilBreak()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TBreakTimer.secUntilBreak(): integer;
+begin
+   result := round(self.msecUntilBreak() / 1000);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  minUntilBreak()                                                    }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TBreakTimer.minUntilBreak(): integer;
+begin
+   result := round(self.secUntilBreak() / 60);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  check4break()                                                      }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Main function.  Checks to see if it is time to take a break.       }
+{  If it is break time, calls the user specified 'pre-break'          }
+{  routine, then sleeps for the appropriate time.  When it wakes      }
+{  up it calls the user specified post-break function.                }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TBreakTimer.check4break(): boolean;
+
+var
+   breakMs, nowTime, startTime, endingTime: int64;
+   adjusted: TBreakTimer;
+   timeToSleep: boolean;
+
+begin
+   if (self.breakType = TBreakType.BRK_SUICIDE) then
+      exit;
+
+   timeToSleep := false;
+
+   if (self.breakType = TBreakType.BRK_HUMAN) then
+   begin
+      nowTime := timeOfDayToMsec();
+      if (isWeekend()) then
+      begin
+         startTime  := self.weekendStart +
+            randomVary(self.startEndVariance);
+         endingTime := self.weekendEnd   +
+            randomVary(self.startEndVariance);
+      end
+      else
+      begin
+         startTime  := self.weekdayStart +
+            randomVary(self.startEndVariance);
+         endingTime := self.weekdayEnd   +
+            randomVary(self.startEndVariance);
+      end;
+
+      // we have two cases to worry about.
+      // simple:     0 < start time < end time < 24
+      // overlap:    24/0 < end time < start time  (start at 8pm play till 4am)
+
+      if (startTime < endingTime) then
+      begin
+         if (nowTime < startTime) then
+         begin
+            breakMs := startTime - nowTime + 100;
+            timeToSleep := true;
+            {$IFDEF DEBUG_ON}
+            writeln('***** TBreakTimer: Not time to play yet, ' +
+               'sleep for [',msToTime(breakMs, TIME_BARE), ']');
+            {$ENDIF}
+         end;
+         if (nowTime > endingTime) then // its time for bed
+         begin
+            breakMs := (hoursToMsec(24) - nowTime) + startTime;
+            timeToSleep := true;
+            {$IFDEF DEBUG_ON}
+            writeln('***** TBreakTimer: Past time to play, sleep for [',
+               msToTime(breakMs, TIME_BARE), ']');
+            {$ENDIF}
+         end;
+      end
+      else  // we have the weird case with date overlap
+      begin
+         if ((nowTime < startTime) and (nowTime > endingTime)) then
+         begin
+            breakMs := startTime - nowTime + 100;
+            timeToSleep := true;
+            {$IFDEF DEBUG_ON}
+            writeln('***** TBreakTimer: We are outside of playtime, sleep for [',
+               msToTime(breakMs, TIME_BARE), ']');
+            {$ENDIF}
+         end;
+      end;
+   end;
+
+   if ((not timeToSleep) and (getSystemTime() >= self.nextScheduledBreak)) then
+   begin
+      breakMs := minToMsec(self.averageBreak) + randomVary(self.breakVariance * 60000);
+      timeToSleep := true;
+      {$IFDEF DEBUG_ON}
+      writeln('***** TBreakTimer: It is break time, sleep for [',
+         msToTime(breakMs, TIME_BARE), ']');
+      {$ENDIF}
+   end;
+
+   if (timeToSleep) then
+   begin
+      self.onBreakStart();
+
+      if (players.getActive() > 1) then // there is another player to run
+         players.next()
+      else
+         sleep(breakMs);
+
+      self.nextScheduledBreak := self.calcNextBreakTime();
+      self.onBreakEnd();
+   end;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  init()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  This one takes no parameters and will set things for               }
+{  BRK_SUICIDE style (no breaks at all).                              }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TBreakTimer.init(): boolean;
+begin
+   self.breakType := TBreakType.BRK_SUICIDE;
+   result := true;
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  init()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  This one takes the relevant parameters for the BRK_BASIC break     }
+{  style.  Script will run for XX minutes (with a variance) and       }
+{  take breaks for YY minutes (again with a variance).                }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TBreakTimer.init(avgSession: int64;
+                           sessVariance: int64;
+                           avgBreak: int64;
+                           brkVariance: int64;
+                           userBreakStart: procedure;
+                           userBreakEnd: procedure): boolean; overload;
+begin
+   self.breakType          := TBreakType.BRK_BASIC;
+   self.averageSession     := avgSession;
+   self.sessionVariance    := sessVariance;
+   self.averageBreak       := avgBreak;
+   self.breakVariance      := brkVariance;
+   self.onBreakStart       := userBreakStart;
+   self.onBreakEnd         := userBreakEnd;
+   self.nextScheduledBreak := self.calcNextBreakTime();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  init()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  This one takes the relevant parameters for the BRK_HUMAN break     }
+{  style.  User sets playtime hours for weekdays and weekends along   }
+{  with variances for randomization.                                  }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TBreakTimer.init(wdsHH: int64;
+                           wdsMM: int64;
+                           wdeHH: int64;
+                           wdeMM: int64;
+                           wesHH: int64;
+                           wesMM: int64;
+                           weeHH: int64;
+                           weeMM: int64;
+                           seVariance: int64;
+                           avgSession: int64;
+                           sessVariance: int64;
+                           avgBreak: int64;
+                           brkVariance: int64;
+                           weekendBreak: boolean;
+                           userBreakStart: procedure;
+                           userBreakEnd: procedure): boolean; overload;
+begin
+   self.breakType            := TBreakType.BRK_HUMAN;
+   self.weekdayStart         := hoursToMsec(wdsHH) + minToMsec(wdsMM);
+   self.weekdayEnd           := hoursToMsec(wdeHH)+ minToMsec(wdeMM);
+   self.weekendStart         := hoursToMsec(wesHH) + minToMsec(wesMM);
+   self.weekendEnd           := hoursToMsec(weeHH) + minToMsec(weeMM);
+   self.startEndVariance     := seVariance;
+   self.averageSession       := avgSession;
+   self.sessionVariance      := sessVariance;
+   self.averageBreak         := avgBreak;
+   self.breakVariance        := brkVariance;
+   self.longWeekendBreakFlag := weekendBreak;
+   self.onBreakStart         := userBreakStart;
+   self.onBreakEnd           := userBreakEnd;
+   self.nextScheduledBreak   := self.calcNextBreakTime();
+
+   // we call this in the initializer because it may not be time to
+   // start playing for the day.  We will immediately go into break
+   self.check4break();
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  init()                                                             }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{                                                                     }
+{  Initializer.  This one takes the relevant parameters for the       }
+{  BRK_HUMAN break style.  User sets playtime hours for weekdays      }
+{  and weekends along with variances for randomization.               }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+function TBreakTimer.init(
+         wdsHHMM        : string;    // weekday start time
+         wdeHHMM        : string;    // weekday end time
+         wesHHMM        : string;    // weekend start time
+         weeHHMM        : string;    // weekend end time
+         seVariance     : int64;     // start-end time variance
+         avgSession     : int64;     // session length (minutes)
+         sessVariance   : int64;     // session variance (minutes)
+         avgBreak       : int64;     // break length (minutes)
+         brkVariance    : int64;     // break variance (minutes)
+         weekendBreak   : boolean;   // take random long break on weekend?
+         userBreakStart : procedure;
+         userBreakEnd   : procedure): boolean; overload;
+begin
+   self.init(strToInt(copy(wdsHHMM, 1, 2)), strToInt(copy(wdsHHMM, 3, 2)),
+            strToInt(copy(wdeHHMM, 1, 2)),  strToInt(copy(wdeHHMM, 3, 2)),
+            strToInt(copy(wesHHMM, 1, 2)),  strToInt(copy(wesHHMM, 3, 2)),
+            strToInt(copy(weeHHMM, 1, 2)),  strToInt(copy(weeHHMM, 3, 2)),
+            seVariance, avgSession, sessVariance, avgBreak, brkVariance,
+            weekendBreak, userBreakStart, userBreakEnd);
+end;
+
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+{  initializer                                                        }
+{  Written by: bonsai                                                 }
+{  Date Last Modified: 2014/09                                        }
+{¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯}
+begin
+   // set it by default to BRK_SUICIDE
+   breakTimer.init();
+
+   updater.check4update('blBreak.simba', blBreakVersion,
+      blBreakVerUrl, blBreakCodeUrl, true);
+end;
