@@ -40,6 +40,8 @@ end;
 
 procedure updateProgress(tilbreak: integer);
 begin
+  if players[currentPlayer].worked.getTime() = 0 then
+    exit;
   OSD.progress.update(1, msToTime(players[currentPlayer].worked.getTime(), TIME_ABBREV));
   OSD.progress.update(2, toStr(kTracker.totalEXP));
   OSD.progress.update(3, toStr(round((kTracker.totalEXP * 60) / (players[currentPlayer].worked.getTime() / 60000))));
@@ -60,8 +62,4 @@ begin
   writeLn(PadR('| EXP: ' + toStr(kTracker.totalEXP), 42) + '|');
   writeLn(PadR('| EXP/HR: ' + toStr(round((kTracker.totalEXP * 60) / (players[currentPlayer].worked.getTime() / 60000))), 42) + '|');
   writeLn('|=========================================|');
-end;
-
-begin
-  addOnTerminate('printProgress');
 end;

@@ -22,7 +22,7 @@ type
     col: integer;
     box: TBox;
     txt: String;
-    state: TStringArray;
+    state: String;
   end;
 
 (*
@@ -98,7 +98,7 @@ begin
                 5: self.col := clMaroon;
               end;
   self.txt := 'Status: ';
-  self.state := ['Initializing...'];
+  self.state := 'Initializing...';
 end;
 
 (*
@@ -110,7 +110,7 @@ statusOverlay.update()
     Example:
       OSD.status.update(['derping', 'around']);
 *)
-procedure statusOverlay.update(txt: TStringArray);
+procedure statusOverlay.update(txt: String);
 begin
   self.state := txt;
 end;
@@ -144,9 +144,9 @@ begin
     fastReplaceColor(self.bmp, 0, 1);
   self.loc := point(chatbox.x1, chatbox.y1);
   self.worked := '';
-  self.exp := '';
-  self.xph := '';
-  self.tilBreak := '';
+  self.exp := '0';
+  self.xph := '0';
+  self.tilBreak := '0';
 end;
 
 (*
@@ -270,8 +270,7 @@ begin
   txtPoint := point(self.status.box.X1 + 10, self.status.box.Y1 + 8);
   drawString(self.status.txt, txtPoint);
   statusPoint := point(self.status.box.X1 + 70, self.status.box.Y1 + 8);
-  for x := 0 to high(self.status.state) do
-    drawString(self.status.state[x], point((statusPoint.x + (x*75)), statusPoint.y));
+  drawString(self.status.state, point((statusPoint.x), (statusPoint.y)));
   {$ENDIF}
 end;
 

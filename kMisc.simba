@@ -46,7 +46,7 @@ begin
     2: if random(8) = 0 then begin
       case random(4) of
         0: sleepAndMoveMouse(1000 + random(2000));
-        1: boredHuman();
+        //1: boredHuman();
         2: mouseOffClient(OFF_CLIENT_RANDOM, randomRange(3000, 8000));
         //3: begin
           //randomCompass(15, 30, true);
@@ -85,16 +85,10 @@ begin
   result := box.getGaussPoint();
 end;
 
-procedure actionBarNumber(skill: integer);    //activates ability skill via sendkeys
-begin
-  sendKeys(toStr(skill), 15+randomRange(50,100), 20+randomRange(25,125));
-  wait(250 + random(500));
-end;
-
 procedure actionBarChar(skill: string);    //activates ability skill via sendkeys
 begin
-  sendKeys(skill, 15+randomRange(50,100), 20+randomRange(25,125));
-  wait(250 + random(500));
+  sendKeys(skill, 30 + Random(30), 30 + Random(30));
+    Wait(40 + Random(40));
 end;
 
 procedure fastButton(button: string);
@@ -103,7 +97,7 @@ begin
   wait(25 + random(50));
 end;
 
-function cutArrowShafts(key: string): boolean;
+function fletch(key: integer; fletchType: integer = 1): boolean;   //default fletch arrows
 var
   failTimer: TTimeMarker;
 begin
@@ -121,7 +115,7 @@ begin
       writeLn('Terminating Script...');
       terminateScript();
     end;
-    actionBarChar(key);
+    actionBar.clickSlot(key, MOUSE_LEFT);
     wait(randomRange(250,500));
   until productionScreen.isOpen() or toolScreen.isOpen();
 
@@ -131,7 +125,7 @@ begin
 
   wait((600 + random(600)) + random(600));
 
-  if not productionscreen.selectBox(1) then
+  if not productionscreen.selectBox(fletchType) then
   begin
     writeln('Fletch Type is invalid!');
     writeLn('Terminating Script...');

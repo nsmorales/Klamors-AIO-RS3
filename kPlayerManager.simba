@@ -25,9 +25,11 @@ var
   PlayerMgr: kPlayerManager;
 
 procedure kPlayerManager.init(_minsTilBreak, _breakFor, _breakVar: Integer);
+(*
 var
   availableTasks: array of kTask;
   x: Integer;
+  *)
 begin
   (*
   availableTasks := setupTasks();
@@ -88,36 +90,57 @@ begin
   begin
     time := round(PlayerMgr.breakVar * 0.1); // Add +/- 10% to break time
     time := PlayerMgr.breakFor + random(-time, time);
-    OSD.status.update(['Taking a ' + toStr(round(time / 60000, 2)) + ' minute break']);
+    OSD.status.update('Taking a ' + toStr(round(time / 60000, 2)) + ' minute break');
+    OSD.refresh();
     mouseOffClient(OFF_CLIENT_RANDOM);
     sleep(time);
     if not isLoggedIn() then
-      players[currentPlayer].login();
+    begin
+      if lobby.isOpen() then
+        lobby.quickSelectWorld(73, true)
+      else
+        players[currentPlayer].login();
+      minimap.clickCompass();
+      mainScreen.setAngle(MS_ANGLE_HIGH);
+    end;
     players[currentPlayer].worked.reset();
     players[currentPlayer].worked.start();
     exit(true);
-  end else
-    writeLn('Mins til break: ' + toStr(PlayerMgr.tilBreak()));
+  end;
 end;
 
 function kPlayerManager.setup(): boolean;
+var
+  loginTimer: TTimeMarker;
 begin
   if not isLoggedIn() then
-    if not players[currentPlayer].login() then
     begin
-      writeLn('Not Logged In!');
-      exit(false);
+      loginTimer.start();
+      if lobby.isOpen() then
+        lobby.quickSelectWorld(73, true)
+      else
+        players[currentPlayer].login();
+      repeat
+        wait(600);
+      until isLoggedIn() or (loginTimer.getTime() > 20000);
+      if not isLoggedIn() or (loginTimer.getTime() > 20000) then
+        exit(false);
+      //minimap.setAngle(MM_DIRECTION_NORTH);
+      mainScreen.setAngle(MS_ANGLE_HIGH);
+      mainScreen.setZoom(true);
     end;
+
+  loginTimer.reset();
 
   setupTaskAreas();
   initTasks();
   kTracker.init();
 
-  OSD.status.update(['Initializing Player Manager...']);
+  OSD.status.update('Initializing Player Manager...');
   OSD.refresh();
-  self.init(60, 17, 7);       //minsTilBreak - 60 mins, breakFor - 17 mins, breakVar- 7 mins
+  self.init((60 + random(60)), (15 + random(7)), (5  + random(4)));       //minsTilBreak - 60 mins, breakFor - 17 mins, breakVar- 7 mins
 
-  OSD.status.update(['Initializing tasks...']);
+  OSD.status.update('Initializing tasks...');
   OSD.refresh();
 
   //self.setCurrentLowestTask();
@@ -127,13 +150,11 @@ begin
   players[currentPlayer].worked.reset();
   players[currentPlayer].worked.start();
 
-  result := true;
+  result := isLoggedIn();
 end;
 
 procedure kPlayerManager.doMain();
 begin
-  writeLn('Setting up Player Manager');
-
   if not self.setup() then
   begin
     writeLn('Failed to setup Player Manager!');
@@ -141,10 +162,10 @@ begin
     terminateScript();
   end;
 
-  self.changeTask(fishLobster);
+  self.changeTask(mapleCutShortbows);
 
   repeat
-    //takeBreak();
+    takeBreak();
     self.currentTask.doTask();
     updateProgress(self.tilBreak());
   until false;

@@ -9,8 +9,10 @@ program kNXT;
 //                  PLAYER SETUP                   //
 /////////////////////////////////////////////////////
 const
-  NXT_DEBUG = false;
-  //SKILLS TO TRAIN TRUE/FALSE
+  SCRIPT_TEST  = false;
+  SCRIPT_DEBUG = true;
+
+  //SKILLS TO TRAIN
   TRAIN_ATTACK = true;
   TRAIN_MAGIC = true;
   TRAIN_WOODCUTTING = true;
@@ -18,17 +20,25 @@ const
   TRAIN_MINING = true;
   TRAIN_SMITHING = true;
   TRAIN_DIVINATION = true;
+  TRAIN_FISHING = true;
+
+  //COMBAT MANAGER SETUP
+  _SGSSLOT = 0;
+  _QPSLOT  = 0;
+  _SOPSLOT = 0;
+  _BURYSLOT = 0;
+  _FOODSLOT = 14;
 
 procedure declarePlayers();
 begin
   setLength(players, 1);
   with players[0] do
   begin
-    loginName := '';
-    password := '';
+    loginName := 'derpatron6666@gmail.com';
+    password := 'March2015';
     isActive := true;
-    isMember := false;
-    world := 0;
+    isMember := true;
+    world := 73;
   end
   currentPlayer := 0;
 end;
@@ -36,6 +46,10 @@ end;
 /////////////////////////////////////////////////////
 //                  PLAYER SETUP                   //
 /////////////////////////////////////////////////////
+procedure setupCombatMgr();
+begin
+  kCombatMgr.setup(_SGSSLOT, _BURYSLOT, _FOODSLOT, _QPSLOT, _SOPSLOT);
+end;
 
 procedure declareSkills();
 begin
@@ -46,30 +60,154 @@ begin
   PlayerMgr.skillsToTrain[SKILL_MINING] := TRAIN_MINING;
   PlayerMgr.skillsToTrain[SKILL_SMITHING] := TRAIN_SMITHING;
   PlayerMgr.skillsToTrain[SKILL_DIVINATION] := TRAIN_DIVINATION;
+  PlayerMgr.skillsToTrain[SKILL_FISHING] := TRAIN_FISHING;
+end;
+
+procedure caSmithNXT();
+var
+  furnace, bankChest: TBox;
+  //chest_col, funace_col: TColorData;
+begin
+  bankChest := [375, 390, 435, 450];
+  furnace := [1554, 525, 1727, 615];
+  NAS.Drawing.drawBox(bankChest, false, clWhite);
+  NAS.Drawing.drawBox(furnace, false, clWhite);
+  repeat until false;
+end;
+
+procedure usePortable(box: TBox; skill: integer);
+var
+  failTimer: TTimeMarker;
+begin
+  mouseBox(box, MOUSE_MOVE);
+  if isMouseOverText(['ook']) then
+    fastClick(MOUSE_LEFT)
+  else
+    exit();
+  failTimer.start();
+  repeat
+    sleep(50);
+  until productionScreen.isOpen() or (failTimer.getTime() > 10000);
+  if failTimer.getTime() > 10000 then
+    begin
+      writeLn('Didnt open Production Screen after 10 seconds!');
+      terminateScript;
+    end;
+  failTimer.reset();
+  if productionScreen.isOpen() then
+    begin
+      makeItems();
+      waitForItems(skill);
+    end;
+end;
+
+function reUp(preset: integer; bankBox: TBox): boolean;
+  var
+    failTimer: TTimeMarker;
+  begin
+    mouseBox(bankBox, MOUSE_LEFT);
+    failTimer.start();
+    repeat
+      sleep(50);
+    until bankScreen.isOpen() or (failTimer.getTime() > 10000);
+    if failTimer.getTime() > 10000 then
+      begin
+        writeLn('Didnt open bank after 10 seconds!');
+        terminateScript;
+      end;
+      failTimer.reset();
+    if bankScreen.isOpen() then
+      actionBarChar(toStr(preset));
+    failTimer.start();
+    repeat
+      sleep(50);
+    until not bankScreen.isOpen() or (failTimer.getTime() > 10000);
+    if failTimer.getTime() > 10000 then
+      begin
+        writeLn('Bank didnt close after 10 seconds!');
+        terminateScript;
+      end;
+    failTimer.reset();
+    result := tabBackpack.isFull();
+  end;
+
+procedure caPortables(preset: integer);
+var
+  bankBox, pRange, pWell, pForge, pSawmill,
+  pFletch, pCrafter, pBrazier, b: TBox;
+  checkBoxes: array of TBox;
+  x: integer;
+begin
+  b := mainScreen.playerBox;
+  b.shrink(10);
+  b.x1 := b.x1 - 10;
+  b.x2 := b.x2 + 10;
+  b.y1 := b.y1 + 15;
+  setLength(checkBoxes, 4);
+  checkBoxes[0] := [(b.x1 - 51), b.Y1, b.X1, b.Y2];
+  checkBoxes[1] := [b.X2, b.Y1, (b.X2 + 51) , b.Y2];
+  checkBoxes[2] := [b.X1, (b.Y1 - 51), b.X2, b.Y1];
+  checkBoxes[3] := [b.X1, b.Y2, b.X2, (b.Y2 + 51)];
+
+  for x := 0 to high(checkBoxes) do
+    begin
+      mouseBox(checkBoxes[x]);
+      if isMouseOverText(['ank']) then
+        bankBox := checkBoxes[x];
+      if isMouseOverText(['ook Portable','able range']) then
+        pRange := checkBoxes[x];
+      if isMouseOverText(['mith Portable','able forge']) then
+        pForge := checkBoxes[x];
+      if isMouseOverText(['ix potions', 'ions Portable','able well']) then
+        pWell := checkBoxes[x];
+      if isMouseOverText(['ake planks', 'anks Portable','able sawmill']) then
+        pSawmill := checkBoxes[x];
+      if isMouseOverText(['raft Portable','ortable crafter']) then
+        pCrafter := checkBoxes[x];
+      if isMouseOverText(['letch Portable','ortable fletcher']) then
+        pFletch := checkBoxes[x];
+      if isMouseOverText(['dd logs','ogs Portable']) then
+        pBrazier := checkBoxes[x];
+    end;
+
+  repeat
+    usePortable(pRange, SKILL_COOKING);
+  until not reUp(preset, bankBox);
+
 end;
 
 procedure test();
 begin
-  players[0].worked.start();
   repeat
-    willow.chopDone();
+    NAS.Drawing.clear();
+    OSD.status.update('Bankscreen Open: ' + toStr(bankScreen.isOpen()));
+    OSD.refresh();
+    if bankScreen.isOpen() then
+      NAS.Drawing.drawBox(bankScreen.getBounds(), false, clWhite);
+    wait(600);
   until false;
 end;
 
 begin
   ClearDebug();
-  NAS.EnableDebug(false);
-  disableSRLdebug = false;
+  NAS.EnableDebug(SCRIPT_DEBUG);
+  disableSRLdebug := not(SCRIPT_DEBUG);
 
   declarePlayers();
   declareSkills();
+  setupCombatMgr();
+  setupSRL();
+
+  //if not SCRIPT_DEBUG then
+    //addOnTerminate('printProgress');
 
   if(NAS.init()) then
   begin
     NAS.Layer.PaintInterval(100);
-    if NXT_DEBUG then
-      test();
-    PlayerMgr.doMain();
+    if SCRIPT_TEST then
+      test()
+    else
+      PlayerMgr.doMain();
   end else
   begin
     writeLn('Couldnt locate Runescape 3 Game Screen!');

@@ -4,7 +4,7 @@ kGameObject
 
 The kGameObject file holds all functions and procedures
 necessary for interacting with RS3 interactable game
-objects. (trees / ores / NPCs / etc.)
+objects. (trees / ores / NPCs / loot / etc.)
 
 *)
 
@@ -14,12 +14,6 @@ objects. (trees / ores / NPCs / etc.)
 {$include_once Klamor/kMisc.simba}
 {$f-}
 
-(*
-**type kGameObject**
-
-A type that stores the game object settings properties.
-
-*)
 type
   kGameObject = record
     name          : string;
@@ -29,12 +23,6 @@ type
     XP            : integer;
   end;
 
-(*
-**type kLoot**
-
-A type that stores color, gameObject settings, and invDTMs for loot.
-
-*)
 type
   kLoot = record
     color     : TColorData;
@@ -42,20 +30,9 @@ type
     settings  : kGameObject;
   end;
 
-(*
-**var kLoot**
-
-A variable through which scripters can access the kLoot methods.
-
-*)
 var
-  dragonBones, lobstah: kLoot;
-(*
-**type kFish**
+  dragonBones, lobstah, sopII, blueDragonHide: kLoot;
 
-A type that stores minWait/maxWait and gameObject settings for finding fish.
-
-*)
 type
   kFish = record
     minWait   : integer;
@@ -63,44 +40,19 @@ type
     settings  : kGameObject;
   end;
 
-(*
-**var kfish**
-
-A variable through which scripters can access the kFish methods.
-These vars don't need any additional parameters (colors).
-
-*)
 var
-  Shrimp, Anchovies, Sardine, Herring, Crayfish, Trout, Salmon, Pike, Rocktail,
-  Lobster, Tuna, Swordfish, Monkfish, Shark: kFish;
+  //Shrimp, Anchovies, Sardine, Herring, Crayfish, Trout, Salmon, Pike, Rocktail,
+  Lobster, Tuna(*, Swordfish, Monkfish, Shark*): kFish;
 
-(*
-**type kBank**
-
-A type that stores the cols/gameObject settings for banks.
-
-*)
 type
   kBank = record
     color     : TColorData;
     settings  :kGameObject;
   end;
 
-(*
-**var kBank**
-
-A variable through which scripters can access the kBank methods.
-
-*)
 var
   Blue, Gray, Chest, Stiles: kBank;
 
-(*
-**type kTree**
-
-A type that stores the cols/gameObject settings for trees.
-
-*)
 type
   kTree = record
     tree_col: TColorData;           //color of uncut tree
@@ -109,21 +61,9 @@ type
     settings: kGameObject;          //gameobject settings
   end;
 
-(*
-**var kTree**
-
-A variable through which scripters can access the kTree methods.
-
-*)
 var
   Tree, Oak, Willow, Teak, Maple, Mahogany, Yew, Magic, Cursed_Magic, Elder, Crystal: kTree;
 
-(*
-**type kOre**
-
-A type that stores the cols/gameObject settings for ores.
-
-*)
 type
   kOre = record
     rock_col: TColorData;           //col of rocks
@@ -131,85 +71,44 @@ type
     settings: kGameObject;          //gameobject settings
   end;
 
-(*
-**var kOre**
-
-A variable through which scripters can access the kOre methods.
-
-*)
 var
   Copper, Tin, Iron, Silver, Gold, Coal, Mithril, Adamantite, Runite: kOre;
 
-(*
-**type kWisp**
-
-A type that stores the cols/gameObject settings for wisps.
-
-*)
 type
   kWisp = record
     col: TColorData;
     settings: kGameObject;
   end;
 
-(*
-**var kWisp**
-
-A variable through which scripters can access the kWisp methods.
-
-*)
 var
   Pale: kWisp;
 
-(*
-getPrice
---------
+type
+  kBuff = record
+    DTM : integer;
+  end;
 
-    function getPrice(): integer;
+var
+  eqSopII: kBuff;
 
-Returns the Grand Exchange price of an item found on RS3-Wikia
+procedure kBuff.init(_DTM: integer);
+begin
+  self.DTM := _DTM;
+end;
 
-.. note::
+procedure initBuffs();
+begin
+  eqSopII.init(DTMFromString('m6wAAAHic42ZgYDjDxsBwB4qvAvFxID6AhI8C8QUgvgnEO5kheD0Qr4HidUC8HYgPAvEJJFyeqMIQNU2SKCzJQDxgJAEjAQA9AByu'));
+end;
 
-    - by Klamor
-    - Last Updated: 19 December 2017
-
-Example:
-
-      writeln('Soft Clay Price: ', getPrice('Soft_Clay'));
-
-*)
-
-
-(*
-kTree methods
-~~~~~~~~~~~~~
-
-The following methods should be called through the various kTree variables.
-
-Example:
-
-    writeLn('Willow XP: ', toStr(Willow.settings.xp));
-*)
-
-{*
-init
-------
-
-    procedure kTree.init(_tree_col, _leaf_col, _cut_col: TColorData; _settings: kGameObject);
-
-Initializes a kTree object.
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 19 December 2017
-
-Example:
-
-    Tree.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Tree', ['Tree'], 'hop', [50. 100], getPrice('Logs'), 'Woodcutting', 25, 60000, 30000]);
-
-*}
+function kBuff.isActive(): boolean;
+begin
+  if tabBackpack.countDTM(self.DTM) > 0 then
+    result := true;
+end;
+//
+//  kTree Methods
+//
 procedure kTree.init(_tree_col, _bottom_col, _cut_col: TColorData; _settings: kGameObject);
 begin
   self.tree_col := _tree_col;
@@ -218,106 +117,70 @@ begin
   self.settings := _settings;
 end;
 
-(*
-initTrees
----------
-
-    procedure initTrees();
-
-Initializes known tree objects.
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 19 December 2017
-
-Example:
-
-      initTrees();
-
-*)
 procedure initTrees();
 begin
-  //TREEOBJECT.INIT([TREE_COL], [BOTTOM_COL], [CUT_COL], ['NAME', ['OVER','TEXT'], 'CHOOSEOPTION', ])
+  //TREEOBJECT.INIT([TREE_COL], [BOTTOM_COL], [CUT_COL], ['NAME', ['OVER','TEXT'], 'CHOOSEOPTION', price, xp])
   Tree.init([4821171, 18, [2, [0.07, 0.90, 0.00]]], [3092775, 4, [2, [1.02, 1.21, 0.00]]], [11709110, 8, [2, [1.85, 0.37, 0.00]]], ['Tree', ['Tree'], 'hop down', getPrice('Logs'), 25]);
   Oak.init([5005148, 12, [2, [0.59, 0.49, 0.00]]], [3555643, 10, [2, [1.17, 0.32, 0.00]]], [12435401, 0, [2, [0.00, 0.00, 0.00]]], ['Oak Tree', ['Oak'], 'hop down', getPrice('Oak_Logs'), round(37.5)]);
   Willow.init([1057287, 6, [2, [0.32, 5.90, 0.00]]], [1319176, 5, [2, [0.28, 5.97, 0.00]]], [4149804, 3, [2, [0.16, 0.39, 0.00]]], ['Willow Tree', ['Willow'], 'hop down', getPrice('Willow_Logs'), round(67.5)]);
   Teak.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Teak Tree', ['Teak'], 'hop down', getPrice('Teak_Logs'), 85]);
-  Maple.init([1782394, 17, [2, [0.11, 0.91, 0.00]]], [729672, 9, [2, [0.36, 2.56, 0.00]]], [6135002, 7, [2, [0.09, 1.70, 0.00]]], ['Maple Tree', ['Maple'], 'hop down', getPrice('Maple_Logs'), 100]);
+  Maple.init([3488222, 13, [2, [7.63, 1.17, 0.00]]], [528703, 6, [2, [0.45, 3.49, 0.00]]], [6135002, 7, [2, [0.09, 1.70, 0.00]]], ['Maple Tree', ['Maple'], 'hop down', getPrice('Maple_Logs'), 100]);
   Mahogany.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Mahogany Tree', ['Mahogany'], 'hop down', getPrice('Mahogany_Logs'), 125]);
-  Yew.init([3957886, 10, [2, [0.05, 0.13, 0.00]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Yew Tree', ['Yew'], 'hop down', getPrice('Yew_Logs'), 175]);
+  Yew.init([3430253, 6, [2, [0.09, 0.13, 0.00]]], [3232359, 8, [2, [0.15, 0.33, 0.00]]], [0, 0, [0, [0.00, 0.00, 0.00]]], ['Yew Tree', ['Yew'], 'hop down', getPrice('Yew_Logs'), 175]);
   Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Magic Tree', ['Magic'], 'hop down', getPrice('Magic_Logs'), 250]);
   Cursed_Magic.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cursed Magic Tree', ['Cursed'], 'hop down', getPrice('Cursed_Magic_Logs'), 275]);
   Elder.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Elder Tree', ['Elder'], 'hop down', getPrice('Elder_Logs'), 325]);
   Crystal.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Cyrstal Tree', ['Crystal'], 'hop down', getPrice('Crystal_Logs'), round(434.5)]);
 end;
 
-(*
-kTree.findTree()
-----------------
+function kTree.debug(): T2DPointArray;
+var
+  trunkTPA: TPointArray;
+  clickAbles: T2DPointArray;
+  box: TBox;
+  x: integer;
+begin
+  box := mainScreen.playerBox;
+  box.expand(400);
+  box.X1 := box.X1 - 400;
+  box.x2 := minimap.x1 - 1;
+  box.Y2 := chatBox.y1 - 35;
 
-    procedure kTree.findTree(hoverNext: Boolean = false): Boolean;
+  findColorsTolerance(trunkTPA, self.bottom_col.color, box, self.bottom_col.tolerance, self.bottom_col.settings);
 
-Returns true if we successfully find and click a tree on the mainscreen.
+  mainScreen.filterPointsPlayer(trunkTPA);
 
-.. note::
+  clickAbles := trunkTPA.toATPA(15);
+  clickAbles.sortFromMidPoint(mainScreen.playerPoint);
 
-    - by Klamor
-    - Last Updated: 21 December 2017
+  result := clickAbles;
+end;
 
-Example:
-
-      if Willow.findTree() then
-        writeLn('Found: ', Willow.settings.name, '!');
-
-*)
 function kTree.findTree(hoverNext: Boolean = false): Boolean;
 var
-  treeATPA, good, bad, TPAs: T2DPointArray;
+  ATPA: T2DPointArray;
   i, x, y: Integer;
-  searchBox: TBox;
   failTimer: TTimeMarker;
 begin
   {$IFDEF NAS_DRAWING}
-    OSD.status.update(['Finding: ' + self.settings.name]);
+    OSD.status.update('Finding: ' + self.settings.name);
     OSD.refresh();
   {$ENDIF}
-  setLength(TPAs, 3);
+  ATPA := self.debug();
+  if length(ATPA) < 1 then
+    exit(false);
 
   failTimer.reset();
   failTimer.start();
 
-  self.tree_col.gatherIn(TPAs[0], mainScreen.getBounds());
-  self.bottom_col.gatherIn(TPAs[1], mainScreen.getBounds());
-  self.cut_col.gatherIn(TPAs[2], mainScreen.getBounds());
-
-  treeATPA := TPAs[0].toATPA(25, 25);
-
-  for i := 0 to high(treeATPA) do
-  begin
-    if treeATPA[i].isPointNear(middleTPA(TPAs[2]), 50) then
-    begin
-      setLength(bad, (high(bad) + 1));
-      bad := bad + treeATPA[i];
-      break;
-    end;
-    if treeATPA[i].isPointNear(middleTPA(TPAs[1]), 75) then
-    begin
-      setLength(good, (high(good) + 1));
-      good := good + treeATPA[i];
-    end;
-  end;
-
-  good.sortFromMidPoint(mainscreen.playerPoint);
-
-  for i := 0 to high(good) do
+  for i := 0 to high(ATPA) do
   begin
     if failTimer.getTime() > 15000 then
       exit(false);
     {$IFDEF NAS_DRAWING}
-      NAS.Drawing.drawBox(good[i].getBounds(), false, clBlue);
+      NAS.Drawing.drawBox(ATPA[i].getBounds(), false, clBlue);
     {$ENDIF}
-    mouse(good[i].getBounds().getGaussPoint());
+    mouse(ATPA[i].getBounds().getGaussPoint());
     if isMouseOverText(self.settings.overText) then
       if hoverNext then
         exit(true)
@@ -339,91 +202,37 @@ begin
   end;
 end;
 
-(*
-kTree.chopDone()
-----------------
-
-    procedure kTree.chopDone(): Boolean;
-
-Returns true if we are done cutting a tree.
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 22 December 2017
-    - Inspired by Coh3n's Chop_Finished() in Draynor Chop N' Bank
-
-Example:
-
-      if Willow.chopDone() then
-        writeLn('Done cutting: ', Willow.settings.name, '!');
-
-*)
 function kTree.chopDone(): boolean;
 var
   timeout: TTimeMarker;
-  avg, max, done: Integer;
-  box: TBox;
+  start, toWait: Integer;
 begin
   if not isLoggedIn() then
     exit;
 
-  max := (30000 + randomRange(-10000, 10000));
-  box := mainScreen.playerBox;
-  box.expand(50);
-  done := 0;
+  minimap.waitPlayerMoving();
 
   timeout.reset();
   timeout.start();
 
+  start := tabBackpack.count();
+  toWait := randomRange(15000,20000);
+
   repeat
-    avg := getPixelShiftAverage(box, 100, 300);
-
-    if (inRange(avg, 0, 300)) then
-    begin
-      Inc(done);
-      if (done = 1) then
-        Continue;
-    end else
-    if (avg > 1700) then
-    begin
-      {$IFDEF NAS_DRAWING}
-        OSD.status.update(['AVG: ' + toStr(avg) + ' TREE DOWN!']);
-        OSD.refresh();
-      {$ENDIF}
+    if tabBackpack.isFull() then
       exit(true);
-    end else
-      done := 0;
+    if random(100) > 80 then
+      makeItemsAntiBan(SKILL_WOODCUTTING)
+    else
+      wait(randomRange(800,1200));
+  until timeout.getTime() > toWait;
 
-    if (done >= 2) or (tabBackpack.isFull()) then
-    begin
-      Result := True;
-      {$IFDEF NAS_DRAWING}
-        OSD.status.update(['AVG: ' + toStr(avg) + ' IDLE EXIT']);
-        OSD.refresh();
-      {$ENDIF}
-      Break;
-    end;
-
-  until (timeout.getTime() > max) or (not isLoggedIn());
+  if tabBackpack.count() <> start then
+    exit(false)
+  else
+    Result := true;
 end;
 
-(*
-kTree.cut(tree: kTree)
-======================
-
-  procedure kTree.cut(tree: kTree)
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 15 Jan 2018
-
-Example:
-
-      if ktree.cut(tree) then
-        OSD.status.update(['CHOPPIN DEM TREES!']);
-*)
 function kTree.cut(): integer;
 var
   invStart: Integer;
@@ -436,7 +245,7 @@ begin
     if self.findTree(false) then
     begin
       {$IFDEF NAS_DRAWING}
-        OSD.status.update(['Cutting: ' + self.settings.name]);
+        OSD.status.update('Cutting: ' + self.settings.name);
         OSD.refresh();
       {$ENDIF}
       repeat
@@ -445,67 +254,25 @@ begin
     end else
     begin
       {$IFDEF NAS_DRAWING}
-        OSD.status.update(['Didnt find: ' + self.settings.name]);
+        OSD.status.update('Didnt find: ' + self.settings.name);
       {$ENDIF}
     end;
   end;
   result := (28 - invStart);
 end;
-
-(*
-kOre methods
-~~~~~~~~~~~~
-
-The following methods should be called through the various kOre variables.
-
-Example:
-
-    writeLn('Copper XP: ', totr(Copper.settings.xp));
-*)
-
-{*
-init
-------
-
-    procedure kOre.init(_rock_col, _ore_col: TColorData; _settings: kGameObject);
-
-Initializes a kOre object.
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 19 December 2017
-
-Example:
-
-     Copper.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Copper Rocks', ['Copper', 'Ore'], 'mine', [25. 25], getPrice('Copper_Ore'), 'Mining', round(17.5), 60000, 30000]);
-
-*}
+//
+//  end kTree Methods
+//
+{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+//
+//  kOre Methods
+//
 procedure kOre.init(_rock_col, _ore_col: TColorData; _settings: kGameObject);
 begin
   self.rock_col := _rock_col;
   self.ore_col := _ore_col;
   self.settings := _settings;
 end;
-
-(*
-initOres
---------
-
-    procedure initOres();
-
-Initializes known ore objects.
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 19 December 2017
-
-Example:
-
-      initOres();
-
-*)
 
 procedure initOres();
 begin
@@ -519,89 +286,29 @@ begin
   Adamantite.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Adamantite Rocks', ['Adamantite', 'ore'], 'mine', getPrice('Adamantite_ore'), 95]);
   Runite.init([0, 0, [0, [0, 0, 0]]], [0, 0, [0, [0, 0, 0]]], ['Runite Rocks', ['Runite', 'ore'], 'mine', getPrice('Runite_ore'), 125]);
 end;
-
-(*
-kWisp methods
-~~~~~~~~~~~~~
-
-The following methods should be called through the various kWisp variables.
-
-Example:
-
-    write something here
-*)
-
-{*
-init
-------
-
-    procedure kWisp.init(_glow_col, _wisp_col: TColorData; level_req: Integer; _settings: kGameObject);
-
-Initializes a kWisp object.
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 26 December 2017
-
-Example:
-
-    write soemthing here
-
-*}
+//
+//  end kOre Methods
+//
+{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+//
+//  kWisp Methods
+//
 procedure kWisp.init(_col: TColorData; _settings: kGameObject);
 begin
   self.col := _col;
   self.settings := _settings;
 end;
 
-(*
-initWisps
----------
-
-    procedure initWisps();
-
-Initializes known wisp objects.
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 26 December 2017
-
-Example:
-
-      initWisps();
-
-*)
 procedure initWisps();
 begin
   Pale.init([13150361, 11, [2, [0.20, 0.67, 0.00]]], ['Pale Wisp', ['arvest', 'Pale', 'Wisp'], 'arvest', getPrice('Pale_energy'), 0]);
 end;
 
-(*
-kWisp.findWisps()
-----------------
-
-    function kWisp.findWisps(hoverNext: Boolean = false): Boolean;
-
-Returns true if we successfully find and click a wisp on the mainscreen.
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 21 December 2017
-
-Example:
-
-      if Pale.findWisps(false) then
-        writeLn('Found: ', Pale.settings.name, '!');
-
-*)
 function kWisp.findWisps(hoverNext: Boolean = false): Boolean;
 var
   TPA: TPointArray;
   wisps: T2DPointArray;
-  i, x, y: Integer;
+  x, y: Integer;
   searchBox: TBox;
 begin
   searchBox := [mainScreen.playerBox.X1 - 600, mainScreen.playerBox.Y1 - 400, mainScreen.playerBox.X2 + 600, mainScreen.playerBox.Y2 + 400];
@@ -642,26 +349,6 @@ begin
   end;
 end;
 
-(*
-kWisp.doneHarvesting()
-----------------
-
-    procedure kWisp.doneHarvesting(): boolean;
-
-Returns true if we are done cutting a tree.
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 22 December 2017
-    - Inspired by Coh3n's Chop_Finished() in Draynor Chop N' Bank
-
-Example:
-
-      if Pale.doneHarvesting() then
-        writeLn('Done harvesting: ', Pale.settings.name, '!');
-
-*)
 function kWisp.doneHarvesting(): boolean;
 var
   harvestTimer: TTimeMarker;
@@ -693,7 +380,7 @@ begin
     begin
       Result := True;
       {$IFDEF NAS_DRAWING}
-        OSD.status.update(['Done Harvesting!']);
+        OSD.status.update('Done Harvesting!');
       {$ENDIF}
       Break;
     end;
@@ -701,38 +388,19 @@ begin
   until (harvestTimer.getTime() > timeout) or (not isLoggedIn());
 end;
 
-function kWisp.findRift(hoverNext: Boolean = false): Boolean;
+function kWisp.findRift(): Boolean;
 begin
-
+  result := false;
 end;
 
-(*
-kWisp.convertMemories()
-----------------
-
-    procedure kWisp.convertMemories(select: Integer);
-
-Converts memories to (select: Integer)*1..3* type.
-1: to Energy
-2: to EXP
-3: to Enhanced EXP
-
-.. note::
-
-    - by Klamor
-    - Last Updated: 22 December 2017
-
-Example:
-
-      if Pale.convertMemories() then
-        writeLn('Converted all memories to: ', toStr(select), '!');
-
-*)
 procedure kWisp.convertMemories(select: Integer);
 begin
-
+  select := 0;
 end;
-
+//
+//  end kWisp Methods
+//
+{~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
 //
 //  kBank Methods
 //
@@ -761,7 +429,7 @@ begin
   if (not isLoggedIn()) then
     exit;
 
-  OSD.status.update(['Finding Bank...']);
+  OSD.status.update('Finding Bank...');
   OSD.refresh();
 
   box := mainScreen.playerBox;
@@ -791,7 +459,7 @@ begin
       NAS.Drawing.drawBox(bankers[i].getBounds(), false, clYellow);
     {$ENDIF}
     mouse(bankers[i].getBounds().getGaussPoint());
-    if isMouseOverText(self.settings.overText) then
+    if isMouseOverText(self.settings.overText, 600) then
     begin
       case mouseStyle of
         MOUSE_LEFT:
@@ -822,6 +490,7 @@ end;
 //
 //  kfish Methods
 //
+
 procedure kFish.init(_minWait, _maxWait: Integer; _settings: kGameObject);
 begin
   self.minWait := _minWait;
@@ -924,7 +593,7 @@ begin
   repeat
     if tabBackpack.isFull() then
       exit(true);
-    if random(100) > 98 then
+    if random(100) > 80 then
       makeItemsAntiBan(SKILL_FISHING)
     else
       wait(randomRange(800,1200));
@@ -948,7 +617,7 @@ begin
     if self.findFishingSpot(false) then
     begin
       {$IFDEF NAS_DRAWING}
-        OSD.status.update(['Fishing: ' + self.settings.name]);
+        OSD.status.update('Fishing: ' + self.settings.name);
         OSD.refresh();
       {$ENDIF}
       repeat
@@ -957,7 +626,7 @@ begin
     end else
     begin
       {$IFDEF NAS_DRAWING}
-        OSD.status.update(['Didnt find: ' + self.settings.name]);
+        OSD.status.update('Didnt find: ' + self.settings.name);
         OSD.refresh();
       {$ENDIF}
     end;
@@ -981,14 +650,18 @@ end
 
 procedure initLoots();
 begin
-  dragonBones.init([], 0, ['Dragon_bones', ['ragon'], 'ake', 72]);
+  dragonBones.init([13476455, 3, [2, [0.09, 1.25, 0.00]]], DTMFromString('mlwAAAHicY2dgYOBjZ2BgBGJBIJYDYlkomwOIjzIxMBwD4lNAfBaIDwHxPiDeA2Jv2gjUzYQVSzLgBox4MBQAAGuQCGo='), ['Dragon_bones', ['ragon'], 'ake', 72]);
   lobstah.init([], DTMFromString('mrAAAAHic42BgYDjAxsBwHIjPAPFRIN4FxfuB+AQIMwHFgXgHEO8D4v1AfByILwHxOSCudZIBmsKEE0sy4AeMBDAMAAAl5w2P'), ['Raw_lobster', ['obster'], 'ake', 0]);
+  sopII.init([], DTMFromString('mbQAAAHicY2VgYNjHxsBwCogPAPE2KH2ciYHhGBDvAeKjQHwRiKfXGgBVM6FgSQZMwIgFgwEA/bIJNQ=='), ['Sign_of_the_porter_II', ['ign', 'of', 'the'], 'ear', 0]);
+  blueDragonHide.init([13179148, 11, [2, [0.15, 0.21, 0.00]]], DTMFromString('mlwAAAHicY2dgYDjExsBwDoiPAvF2IN4ExLuB+BQQH2ECigPxTiDeC8QngfgSEJ8HYgH12UDdTFixJANuwIgHQwEAfPAL6g=='), ['Blue_dragonhide', ['lue','ragonhide'], 'ick', 0]);
 end;
 
 procedure freeLoots();
 begin
   freeDTM(dragonBones.invDTM);
   freeDTM(lobstah.invDTM);
+  freeDTM(sopII.invDTM);
+  freeDTM(blueDragonHide.invDTM);
 end;
 
 function kLoot.hasInv(): boolean;
@@ -1002,6 +675,58 @@ begin
   result := tabBackpack.countDTM(self.invDTM);
 end;
 
+function kLoot.debug(): T2DPointArray;
+var
+  TPA: TPointArray;
+  ATPA: T2DPointArray;
+  box: TBox;
+begin
+  box := mainScreen.playerBox;
+  box.expand(400);
+  box.X1 := box.X1 - 400;
+  box.x2 := box.x2 + 400;
+  NAS.Drawing.DrawBox(box, false, clBlue);
+  findColorsTolerance(TPA, self.color.color, box, self.color.tolerance, self.color.settings);
+  mainScreen.filterPointsPlayer(TPA);
+  ATPA := TPA.toATPA(50,50);
+  result := ATPA;
+end;
+
+function kLoot.find(): boolean;
+var
+  ATPA: T2DPointArray;
+  failTimer: TTimeMarker;
+  i, x, y: integer;
+begin
+  ATPA := self.debug();
+  ATPA.sortFromMidPoint(mainScreen.playerPoint);
+  failtimer.start();
+  for i := 0 to high(ATPA) do
+  begin
+    if failTimer.getTime() > 15000 then
+      exit(false);
+    {$IFDEF NAS_DRAWING}
+      NAS.Drawing.drawBox(ATPA[i].getBounds(), false, clYellow);
+    {$ENDIF}
+    mouse(ATPA[i].getBounds().getGaussPoint());
+    if isMouseOverText(self.settings.overText) then
+      if random(100) < 93 then
+        begin
+          getMousePos(x, y);
+          result := multiClick([x, y], 15, 3); // If left click, 15% chance to multi-click
+          smallRandomMouse();
+          exit(true);
+        end else
+        begin
+          fastClick(MOUSE_RIGHT);
+          if chooseOption.select([self.settings.cO]) then
+          begin
+            smallRandomMouse();
+            exit(true);
+          end;
+        end;
+  end;
+end;
 //
 // end kLoot Methods
 //
