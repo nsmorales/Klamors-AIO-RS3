@@ -3,7 +3,9 @@
 Installation:
 
   Place folders bonsai + Klamor into Simba\Includes
+  
   Place Runescape_Surface into Simba\Includes\SPS\img 
+  
   Place kNXT.simba into Simba\Scripts\
   
 Operation:
