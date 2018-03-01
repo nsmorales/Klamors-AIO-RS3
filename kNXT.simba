@@ -34,8 +34,8 @@ begin
   setLength(players, 1);
   with players[0] do
   begin
-    loginName := 'derpatron6666@gmail.com';
-    password := 'March2015';
+    loginName := '';
+    password := '';
     isActive := true;
     isMember := true;
     world := 73;
