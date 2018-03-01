@@ -8,8 +8,8 @@ objects. (trees / ores / NPCs / loot / etc.)
 
 *)
 
-{$include_once SRL-6-SIMBA1.2/SRL.simba}
-{$include_once NAS/NAS.simba}
+//{$include_once SRL-6-SIMBA1.2/SRL.simba}
+//{$include_once NAS/NAS.simba}
 {$include_once Klamor/kOnScreenDisplay.simba}
 {$include_once Klamor/kMisc.simba}
 {$f-}

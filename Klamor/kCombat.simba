@@ -1,5 +1,5 @@
-{$include_once SRL-6-SIMBA1.2/SRL.simba}
-{$include_once NAS/NAS.simba}
+//{$include_once SRL-6-SIMBA1.2/SRL.simba}
+//{$include_once NAS/NAS.simba}
 {$include_once Klamor/kOnScreenDisplay.simba}
 {$include_once Klamor/kGameObject.simba}
 {$include_once bonsai/blCombat.simba}

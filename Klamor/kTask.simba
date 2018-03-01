@@ -1,6 +1,6 @@
-{$Include_once SRL-6-SIMBA1.2/SRL.simba}
+//{$Include_once SRL-6-SIMBA1.2/SRL.simba}
 {$Include_once SPS/lib/SPS-rs3.simba}
-{$include_once NAS/NAS.simba}
+//{$include_once NAS/NAS.simba}
 {$include_once Klamor/kOnScreenDisplay.simba}
 {$Include_once Klamor/kGameObject.simba}
 {$include_once Klamor/kCombat.simba}
